@@ -159,4 +159,3 @@ DB_PORT=5432
  
 📄 Лицензия
 MIT License
-<img width="484" height="667" alt="image" src="https://github.com/user-attachments/assets/98b884b0-20c0-4844-8f17-fdb947ba957c" />
