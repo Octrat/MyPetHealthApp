@@ -48,13 +48,24 @@ export default function ProfileScreen({ onLogout, onBack, goHome }: any) {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onBack}>
-            <Text style={styles.backText}>← Назад</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Профиль</Text>
-          <View style={{ width: 50 }} />
+      <View style={styles.header}>
+  <TouchableOpacity onPress={onBack}>
+    <Text style={styles.backText}>← Назад</Text>
+  </TouchableOpacity>
+  <Text style={styles.headerTitle}>Профиль</Text>
+  <View style={{ width: 50 }} />
+    </View>
+
+    {/* ✅ Аватар теперь тут */}
+    <View style={styles.avatarContainer}>
+      {avatarSource ? (
+        <Image source={avatarSource} style={styles.avatar} />
+      ) : (
+        <View style={styles.avatarFallback}>
+          <Text style={styles.avatarLetter}>{firstLetter}</Text>
         </View>
+      )}
+    </View>
 
         <View style={styles.card}>
           <Text style={styles.label}>Ваше имя</Text>
@@ -176,7 +187,37 @@ const styles = StyleSheet.create({
     bottom: 25,             // отступ от низа
   },
   
+  avatarContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+    marginTop: 5,
+  },
   
+  avatar: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+  },
+  
+  avatarFallback: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: '#7BC9A8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  
+  avatarLetter: {
+    fontSize: 42,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
   
   navButton: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   navText: { fontSize: 24, color: '#7A8F88' },
