@@ -8,14 +8,12 @@ import userRoutes from './routes/user.js';
 import petsRoutes from './routes/pets.js';
 import { authenticateToken } from './middleware/auth.js';
 import { testConnection } from './config/database.js';
-import breedsRoutes from './routes/breeds.js';
 
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-app.use('/api/breeds', breedsRoutes);
 
 // Middleware
 app.use(cors({

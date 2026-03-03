@@ -1,4 +1,3 @@
-// /Users/mariabelobruh/Desktop/Учеба/Итог/MyPetHealthApp/backend/src/controllers/petsController.js
 import pool from '../config/database.js';
 
 // ===============================
@@ -9,21 +8,20 @@ export const getPets = async (req, res) => {
   if (!userId) return res.status(400).json({ message: 'user_id обязателен' });
 
   try {
-    const result = await pool.query(`
+    const result = await pool.query(
+      `
       SELECT
         p.id,
         p.name,
         p.species,
         p.breed_id,
-        CASE
-          WHEN p.species = 'dog' THEN db.name
-          WHEN p.species = 'cat' THEN cb.name
-        END AS breed_name
+        b.name AS breed_name
       FROM pets p
-      LEFT JOIN dog_breeds db ON p.breed_id = db.id AND p.species = 'dog'
-      LEFT JOIN cat_breeds cb ON p.breed_id = cb.id AND p.species = 'cat'
+      LEFT JOIN breeds b ON p.breed_id = b.id
       WHERE p.user_id = $1
-    `, [userId]);
+      `,
+      [userId]
+    );
 
     res.json(result.rows);
   } catch (err) {
@@ -37,13 +35,20 @@ export const getPets = async (req, res) => {
 // ===============================
 export const addPet = async (req, res) => {
   const { user_id, name, species, breed_id } = req.body;
+
   if (!user_id || !name || !species || !breed_id) {
-    return res.status(400).json({ message: 'user_id, name, species и breed_id обязательны' });
+    return res.status(400).json({
+      message: 'user_id, name, species и breed_id обязательны',
+    });
   }
 
   try {
     const result = await pool.query(
-      'INSERT INTO pets (user_id, name, species, breed_id) VALUES ($1, $2, $3, $4) RETURNING *',
+      `
+      INSERT INTO pets (user_id, name, species, breed_id)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+      `,
       [user_id, name, species, breed_id]
     );
 
@@ -55,22 +60,33 @@ export const addPet = async (req, res) => {
 };
 
 // ===============================
-// Получение списка пород по виду животного (для автокомплита)
+// Получение списка пород (автокомплит)
 // ===============================
 export const getBreeds = async (req, res) => {
-  const { species } = req.query; // 'dog' или 'cat'
+  const { species, search = '' } = req.query;
 
   if (!species || !['dog', 'cat'].includes(species)) {
-    return res.status(400).json({ message: 'species должен быть dog или cat' });
+    return res.status(400).json({
+      message: 'species должен быть dog или cat',
+    });
   }
 
-  const table = species === 'dog' ? 'dog_breeds' : 'cat_breeds';
-
   try {
-    const result = await pool.query(`SELECT id, name FROM ${table} ORDER BY name`);
-    res.json(result.rows); // [{id:1,name:'Лабрадор'}, ...]
-  } catch (err) {
-    console.error(err);
+    const result = await pool.query(
+      `
+      SELECT id, name
+      FROM breeds
+      WHERE species = $1
+      AND name ILIKE $2
+      ORDER BY name
+      LIMIT 20
+      `,
+      [species, `${search}%`]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Breeds error:', error);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 };
