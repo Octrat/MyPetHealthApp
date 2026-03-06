@@ -8,12 +8,16 @@ import {
   TouchableOpacity,
   ScrollView
 } from 'react-native';
+
 import AddPetScreen from './components/AddPetScreen';
 import SplashScreen from './components/SplashScreen';
 import LoginScreen from './components/LoginScreen';
 import RegisterScreen from './components/RegisterScreen';
 import ProfileScreen from './components/ProfileScreen';
+
 import { AuthProvider, useAuth } from './src/hooks/AuthContext';
+import { petsAPI } from './src/services/api';
+import { Pet } from './src/types';
 
 type AppState =
   | 'splash'
@@ -26,6 +30,8 @@ type AppState =
 function MainApp() {
   const [appState, setAppState] = useState<AppState>('splash');
   const { user, logout, isLoading } = useAuth();
+
+  const [pets, setPets] = useState<Pet[]>([]);
 
   React.useEffect(() => {
     if (appState === 'splash') {
@@ -41,6 +47,24 @@ function MainApp() {
       setAppState('main');
     }
   }, [user, appState]);
+
+  // загрузка питомцев
+  React.useEffect(() => {
+    const loadPets = async () => {
+      if (!user) return;
+
+      try {
+        const data = await petsAPI.getPets(user.id);
+        setPets(data);
+      } catch (err) {
+        console.log('Ошибка загрузки питомцев', err);
+      }
+    };
+
+    if (appState === 'main') {
+      loadPets();
+    }
+  }, [appState, user]);
 
   if (isLoading || appState === 'splash') return <SplashScreen />;
 
@@ -62,12 +86,14 @@ function MainApp() {
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="dark-content" backgroundColor="#F6F9F7" />
 
-        {/* Верхняя шапка */}
+        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>🐾 HealthyPaws</Text>
         </View>
 
         <ScrollView contentContainerStyle={styles.content}>
+
+          {/* Welcome */}
           <View style={styles.welcomeCard}>
             <Text style={styles.welcomeTitle}>Добро пожаловать!</Text>
             <Text style={styles.welcomeText}>
@@ -75,28 +101,61 @@ function MainApp() {
             </Text>
           </View>
 
+          {/* Add pet */}
           <TouchableOpacity
             style={styles.addPetButton}
             onPress={() => setAppState('addPet')}
           >
             <Text style={styles.addPetButtonText}>➕ Добавить питомца</Text>
           </TouchableOpacity>
+
+          {/* Pets list */}
+          {pets.length > 0 && (
+            <View style={styles.petsContainer}>
+
+              <Text style={styles.petsTitle}>Ваши питомцы</Text>
+
+              {pets.map((pet) => (
+                <View key={pet.id} style={styles.petCard}>
+
+                  <Text style={styles.petName}>{pet.name}</Text>
+
+                  <Text style={styles.petInfo}>
+                    {pet.species === 'dog' ? '🐶 Собака' : '🐱 Кошка'}
+                  </Text>
+
+                  {pet.breed_name && (
+                    <Text style={styles.petInfo}>
+                      Порода: {pet.breed_name}
+                    </Text>
+                  )}
+
+                </View>
+              ))}
+
+            </View>
+          )}
+
         </ScrollView>
 
-        {/* Нижняя панель */}
+        {/* Bottom nav */}
         <View style={styles.bottomNav}>
+
           <TouchableOpacity style={styles.navButton}>
             <Text style={styles.navText}>?</Text>
           </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.navButton}
             onPress={() => setAppState('main')}
           >
             <Text style={styles.navText}>🏠</Text>
           </TouchableOpacity>
+
           <TouchableOpacity style={styles.navButton}>
             <Text style={styles.navText}>?</Text>
           </TouchableOpacity>
+
           {user && (
             <TouchableOpacity
               style={styles.profileButton}
@@ -107,16 +166,20 @@ function MainApp() {
               </Text>
             </TouchableOpacity>
           )}
+
         </View>
+
       </SafeAreaView>
     );
   }
 
-  if (appState === 'addPet') return <AddPetScreen onBack={() => setAppState('main')} />;
+  if (appState === 'addPet') {
+    return <AddPetScreen onBack={() => setAppState('main')} />;
+  }
 
   if (appState === 'profile') {
     return (
-      <ProfileScreen 
+      <ProfileScreen
         onBack={() => setAppState('main')}
         onLogout={async () => {
           await logout();
@@ -138,7 +201,11 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F6F9F7' },
+
+  container: {
+    flex: 1,
+    backgroundColor: '#F6F9F7'
+  },
 
   header: {
     height: 70,
@@ -146,10 +213,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 16,
     borderRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOpacity: 0.05,
     shadowRadius: 15,
@@ -160,18 +225,14 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     color: '#2F4F4F',
-    textAlign: 'center',
-    flex: 1,
   },
 
   content: {
     padding: 16,
-    alignItems: 'center',
-    paddingBottom: 120, // чтобы нижняя панель не перекрывала контент
+    paddingBottom: 120,
   },
 
   welcomeCard: {
-    width: '100%',
     backgroundColor: '#FFFFFF',
     borderRadius: 22,
     padding: 24,
@@ -197,16 +258,48 @@ const styles = StyleSheet.create({
   addPetButton: {
     backgroundColor: '#7BC9A8',
     paddingVertical: 16,
-    paddingHorizontal: 32,
     borderRadius: 18,
     alignItems: 'center',
-    width: '100%',
   },
 
   addPetButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+
+  petsContainer: {
+    marginTop: 30,
+  },
+
+  petsTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+    color: '#2F4F4F',
+  },
+
+  petCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+
+  petName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#2F4F4F',
+  },
+
+  petInfo: {
+    fontSize: 14,
+    color: '#7A8F88',
+    marginTop: 4,
   },
 
   bottomNav: {
@@ -216,21 +309,17 @@ const styles = StyleSheet.create({
     height: 70,
     width: '90%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 20, // все углы закруглены
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 15,
+    borderRadius: 20,
     elevation: 5,
     alignSelf: 'center',
     paddingHorizontal: 20,
     position: 'absolute',
-    bottom: 25, // подняли выше края экрана
+    bottom: 25,
   },
 
   navButton: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
   },
 
   navText: {
@@ -254,4 +343,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#7BC9A8',
   },
+
 });

@@ -42,14 +42,21 @@ export const petsAPI = {
     userId: number,
     name: string,
     species: 'dog' | 'cat',
-    breedId: number
+    breedId: number,
+    weight: number,
+    height: number,
+    age: number
   ) => {
     const response = await api.post('/pets', {
       user_id: userId,
       name,
       species,
       breed_id: breedId,
+      weight,
+      height,
+      age,
     });
+  
     return response.data;
   },
 

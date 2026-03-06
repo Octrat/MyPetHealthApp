@@ -33,29 +33,36 @@ export const getPets = async (req, res) => {
 // ===============================
 // Добавить питомца
 // ===============================
+// ===============================
+// Добавить питомца
+// ===============================
 export const addPet = async (req, res) => {
-  const { user_id, name, species, breed_id } = req.body;
-
-  if (!user_id || !name || !species || !breed_id) {
-    return res.status(400).json({
-      message: 'user_id, name, species и breed_id обязательны',
-    });
-  }
-
   try {
+
+    const { user_id, name, species, breed_id, weight, height, age } = req.body;
+
+    if (!user_id || !name || !species || !breed_id) {
+      return res.status(400).json({
+        message: 'user_id, name, species и breed_id обязательны',
+      });
+    }
+
     const result = await pool.query(
       `
-      INSERT INTO pets (user_id, name, species, breed_id)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO pets (user_id, name, species, breed_id, weight, height, age)
+      VALUES ($1,$2,$3,$4,$5,$6,$7)
       RETURNING *
       `,
-      [user_id, name, species, breed_id]
+      [user_id, name, species, breed_id, weight, height, age]
     );
 
-    res.status(201).json(result.rows[0]);
+    res.json(result.rows[0]);
+
   } catch (err) {
+
     console.error(err);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    res.status(500).json({ message: 'Ошибка добавления питомца' });
+
   }
 };
 

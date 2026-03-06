@@ -22,20 +22,28 @@ type Props = {
 
 export default function AddPetScreen({ onBack }: Props) {
   const { user } = useAuth();
+
   const [name, setName] = useState('');
   const [species, setSpecies] = useState<'dog' | 'cat' | null>(null);
   const [breedQuery, setBreedQuery] = useState('');
   const [breedOptions, setBreedOptions] = useState<Breed[]>([]);
   const [selectedBreed, setSelectedBreed] = useState<Breed | null>(null);
+
+  // 🔹 новые поля
+  const [weight, setWeight] = useState('');
+  const [height, setHeight] = useState('');
+  const [age, setAge] = useState('');
+
   const [pets, setPets] = useState<Pet[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // 🔹 Загрузка питомцев пользователя
+  // 🔹 загрузка питомцев
   useEffect(() => {
     const loadPets = async () => {
       if (!user) return;
 
       setLoading(true);
+
       try {
         const data: Pet[] = await petsAPI.getPets(user.id);
         setPets(data);
@@ -49,7 +57,7 @@ export default function AddPetScreen({ onBack }: Props) {
     loadPets();
   }, [user]);
 
-  // 🔹 Загрузка пород при выборе вида животного
+  // 🔹 загрузка пород
   useEffect(() => {
     const fetchBreeds = async () => {
       if (!species) {
@@ -59,43 +67,64 @@ export default function AddPetScreen({ onBack }: Props) {
 
       try {
         const data: Breed[] = await petsAPI.getBreeds(species);
+
         const filtered = breedQuery
           ? data.filter((b) =>
               b.name.toLowerCase().startsWith(breedQuery.toLowerCase())
             )
           : data;
+
         setBreedOptions(filtered);
-      } catch (err: any) {
+      } catch (err) {
         console.error('Ошибка загрузки пород:', err);
-        Alert.alert('Ошибка', 'Не удалось загрузить список пород');
       }
     };
 
     fetchBreeds();
   }, [species, breedQuery]);
 
-  // 🔹 Добавление нового питомца
+  // 🔹 сохранение питомца
   const savePet = async () => {
-    if (!name.trim() || !species || !selectedBreed) {
-      Alert.alert('Ошибка', 'Введите имя, тип и выберите породу');
+    if (
+      !name.trim() ||
+      !species ||
+      !selectedBreed ||
+      !weight ||
+      !height ||
+      !age
+    ) {
+      Alert.alert(
+        'Ошибка',
+        'Введите имя, тип, породу, вес, рост и возраст питомца'
+      );
       return;
     }
 
     setLoading(true);
+
     try {
       const data: Pet = await petsAPI.addPet(
         user!.id,
         name,
         species,
-        selectedBreed.id
+        selectedBreed.id,
+        Number(weight),
+        Number(height),
+        Number(age)
       );
+
       setPets((prev) => [...prev, data]);
+
       Alert.alert('Успешно', `Питомец ${data.name} добавлен!`);
+
       setName('');
       setSpecies(null);
       setBreedQuery('');
       setSelectedBreed(null);
       setBreedOptions([]);
+      setWeight('');
+      setHeight('');
+      setAge('');
     } catch (err: any) {
       console.error('Ошибка добавления питомца:', err);
       Alert.alert('Ошибка', err.message || 'Не удалось добавить питомца');
@@ -127,9 +156,10 @@ export default function AddPetScreen({ onBack }: Props) {
           />
         </View>
 
-        {/* Вид */}
+        {/* Тип */}
         <View style={styles.formGroup}>
           <Text style={styles.label}>Тип животного</Text>
+
           <View style={styles.speciesButtons}>
             <TouchableOpacity
               style={[
@@ -147,6 +177,7 @@ export default function AddPetScreen({ onBack }: Props) {
                 Собака
               </Text>
             </TouchableOpacity>
+
             <TouchableOpacity
               style={[
                 styles.speciesButton,
@@ -170,6 +201,7 @@ export default function AddPetScreen({ onBack }: Props) {
         {species && (
           <View style={styles.formGroup}>
             <Text style={styles.label}>Порода</Text>
+
             <TextInput
               style={styles.input}
               placeholder="Начните вводить породу"
@@ -179,6 +211,7 @@ export default function AddPetScreen({ onBack }: Props) {
                 setSelectedBreed(null);
               }}
             />
+
             <View style={styles.autocompleteList}>
               {breedOptions.map((b) => (
                 <TouchableOpacity
@@ -197,7 +230,43 @@ export default function AddPetScreen({ onBack }: Props) {
           </View>
         )}
 
-        {/* Кнопка сохранить */}
+        {/* Вес */}
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>Вес (кг)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Введите вес"
+            keyboardType="numeric"
+            value={weight}
+            onChangeText={setWeight}
+          />
+        </View>
+
+        {/* Рост */}
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>Рост (см)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Введите рост"
+            keyboardType="numeric"
+            value={height}
+            onChangeText={setHeight}
+          />
+        </View>
+
+        {/* Возраст */}
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>Возраст (лет)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Введите возраст"
+            keyboardType="numeric"
+            value={age}
+            onChangeText={setAge}
+          />
+        </View>
+
+        {/* Сохранить */}
         <TouchableOpacity
           style={styles.saveButton}
           onPress={savePet}
@@ -209,21 +278,6 @@ export default function AddPetScreen({ onBack }: Props) {
         </TouchableOpacity>
 
         {loading && <ActivityIndicator style={{ marginTop: 20 }} />}
-
-        {/* Список питомцев */}
-        {pets.length > 0 && (
-          <View style={styles.petList}>
-            <Text style={styles.petListTitle}>Ваши питомцы:</Text>
-            {pets.map((pet) => (
-              <View key={pet.id} style={styles.petCard}>
-                <Text style={styles.petName}>{pet.name}</Text>
-                <Text style={styles.petSpecies}>
-                  {pet.species === 'dog' ? 'Собака' : 'Кошка'}
-                </Text>
-              </View>
-            ))}
-          </View>
-        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -232,11 +286,21 @@ export default function AddPetScreen({ onBack }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F6F9F7' },
   scrollContent: { padding: 16 },
+
   backButtonWrapper: { marginBottom: 20 },
   backButton: { color: '#7BC9A8', fontSize: 16 },
-  title: { fontSize: 22, fontWeight: '700', color: '#2F4F4F', marginBottom: 10 },
+
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#2F4F4F',
+    marginBottom: 10,
+  },
+
   formGroup: { marginBottom: 20 },
+
   label: { fontSize: 16, marginBottom: 8, color: '#2F4F4F' },
+
   input: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -246,7 +310,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#CFEDE2',
   },
+
   speciesButtons: { flexDirection: 'row', gap: 16 },
+
   speciesButton: {
     flex: 1,
     borderWidth: 1,
@@ -257,9 +323,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
   },
+
   speciesButtonSelected: { backgroundColor: '#7BC9A8' },
+
   speciesButtonText: { fontSize: 16, color: '#2F4F4F' },
-  speciesButtonTextSelected: { color: '#fff', fontWeight: '700' },
+
+  speciesButtonTextSelected: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+
   saveButton: {
     marginTop: 20,
     backgroundColor: '#4CAF50',
@@ -267,7 +340,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
   },
+
   saveButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+
   autocompleteList: {
     marginTop: 4,
     backgroundColor: '#fff',
@@ -276,23 +351,10 @@ const styles = StyleSheet.create({
     borderColor: '#CFEDE2',
     maxHeight: 150,
   },
+
   autocompleteItem: {
     padding: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#CFEDE2',
   },
-  petList: { marginTop: 30 },
-  petListTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12, color: '#2F4F4F' },
-  petCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 12,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#CFEDE2',
-  },
-  petName: { fontSize: 16, fontWeight: '600' },
-  petSpecies: { fontSize: 14, color: '#7A8F88' },
 });
