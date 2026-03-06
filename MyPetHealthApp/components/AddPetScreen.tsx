@@ -29,7 +29,7 @@ export default function AddPetScreen({ onBack }: Props) {
   const [breedOptions, setBreedOptions] = useState<Breed[]>([]);
   const [selectedBreed, setSelectedBreed] = useState<Breed | null>(null);
 
-  // 🔹 новые поля
+  // новые поля
   const [weight, setWeight] = useState('');
   const [height, setHeight] = useState('');
   const [age, setAge] = useState('');
@@ -37,13 +37,11 @@ export default function AddPetScreen({ onBack }: Props) {
   const [pets, setPets] = useState<Pet[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // 🔹 загрузка питомцев
+  // загрузка питомцев
   useEffect(() => {
     const loadPets = async () => {
       if (!user) return;
-
       setLoading(true);
-
       try {
         const data: Pet[] = await petsAPI.getPets(user.id);
         setPets(data);
@@ -53,11 +51,10 @@ export default function AddPetScreen({ onBack }: Props) {
         setLoading(false);
       }
     };
-
     loadPets();
   }, [user]);
 
-  // 🔹 загрузка пород
+  // 🔹 загрузка пород с серверным search
   useEffect(() => {
     const fetchBreeds = async () => {
       if (!species) {
@@ -66,15 +63,8 @@ export default function AddPetScreen({ onBack }: Props) {
       }
 
       try {
-        const data: Breed[] = await petsAPI.getBreeds(species);
-
-        const filtered = breedQuery
-          ? data.filter((b) =>
-              b.name.toLowerCase().startsWith(breedQuery.toLowerCase())
-            )
-          : data;
-
-        setBreedOptions(filtered);
+        const data: Breed[] = await petsAPI.getBreeds(species, breedQuery);
+        setBreedOptions(data);
       } catch (err) {
         console.error('Ошибка загрузки пород:', err);
       }
@@ -83,7 +73,7 @@ export default function AddPetScreen({ onBack }: Props) {
     fetchBreeds();
   }, [species, breedQuery]);
 
-  // 🔹 сохранение питомца
+  // сохранение питомца
   const savePet = async () => {
     if (
       !name.trim() ||
@@ -200,19 +190,24 @@ export default function AddPetScreen({ onBack }: Props) {
         {/* Порода */}
         {species && (
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Порода</Text>
-
-            <TextInput
-              style={styles.input}
-              placeholder="Начните вводить породу"
-              value={selectedBreed ? selectedBreed.name : breedQuery}
-              onChangeText={(text) => {
-                setBreedQuery(text);
-                setSelectedBreed(null);
-              }}
-            />
-
-            <View style={styles.autocompleteList}>
+          <Text style={styles.label}>Порода</Text>
+        
+          <TextInput
+            style={styles.input}
+            placeholder="Начните вводить породу"
+            value={breedQuery}
+            onChangeText={(text) => {
+              setBreedQuery(text);
+              setSelectedBreed(null);
+            }}
+          />
+        
+          {/* Оборачиваем список пород в ScrollView с maxHeight */}
+          {breedOptions.length > 0 && (
+            <ScrollView
+              style={styles.autocompleteList}
+              nestedScrollEnabled={true} // 🔹 разрешаем вложенную прокрутку
+            >
               {breedOptions.map((b) => (
                 <TouchableOpacity
                   key={b.id}
@@ -226,8 +221,9 @@ export default function AddPetScreen({ onBack }: Props) {
                   <Text>{b.name}</Text>
                 </TouchableOpacity>
               ))}
-            </View>
-          </View>
+            </ScrollView>
+          )}
+        </View>
         )}
 
         {/* Вес */}
@@ -290,12 +286,7 @@ const styles = StyleSheet.create({
   backButtonWrapper: { marginBottom: 20 },
   backButton: { color: '#7BC9A8', fontSize: 16 },
 
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#2F4F4F',
-    marginBottom: 10,
-  },
+  title: { fontSize: 22, fontWeight: '700', color: '#2F4F4F', marginBottom: 10 },
 
   formGroup: { marginBottom: 20 },
 
@@ -328,10 +319,7 @@ const styles = StyleSheet.create({
 
   speciesButtonText: { fontSize: 16, color: '#2F4F4F' },
 
-  speciesButtonTextSelected: {
-    color: '#fff',
-    fontWeight: '700',
-  },
+  speciesButtonTextSelected: { color: '#fff', fontWeight: '700' },
 
   saveButton: {
     marginTop: 20,
@@ -349,7 +337,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#CFEDE2',
-    maxHeight: 150,
+    maxHeight: 150,       // ограничиваем высоту
   },
 
   autocompleteItem: {

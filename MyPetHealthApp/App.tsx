@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+// App.tsx
+import React, { useState, useEffect } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -6,7 +7,8 @@ import {
   SafeAreaView, 
   StatusBar, 
   TouchableOpacity,
-  ScrollView
+  ScrollView,
+  ActivityIndicator
 } from 'react-native';
 
 import AddPetScreen from './components/AddPetScreen';
@@ -18,6 +20,7 @@ import ProfileScreen from './components/ProfileScreen';
 import { AuthProvider, useAuth } from './src/hooks/AuthContext';
 import { petsAPI } from './src/services/api';
 import { Pet } from './src/types';
+import { analyzePetHealth } from './src/utils/healthCheck';
 
 type AppState =
   | 'splash'
@@ -30,10 +33,11 @@ type AppState =
 function MainApp() {
   const [appState, setAppState] = useState<AppState>('splash');
   const { user, logout, isLoading } = useAuth();
-
   const [pets, setPets] = useState<Pet[]>([]);
+  const [loadingPets, setLoadingPets] = useState(false);
 
-  React.useEffect(() => {
+  // Splash screen logic
+  useEffect(() => {
     if (appState === 'splash') {
       const timer = setTimeout(() => {
         setAppState(user ? 'main' : 'login');
@@ -42,28 +46,29 @@ function MainApp() {
     }
   }, [appState, user]);
 
-  React.useEffect(() => {
+  // Redirect login -> main
+  useEffect(() => {
     if (user && appState === 'login') {
       setAppState('main');
     }
   }, [user, appState]);
 
-  // загрузка питомцев
-  React.useEffect(() => {
+  // Load pets from API
+  useEffect(() => {
     const loadPets = async () => {
       if (!user) return;
-
+      setLoadingPets(true);
       try {
         const data = await petsAPI.getPets(user.id);
         setPets(data);
       } catch (err) {
         console.log('Ошибка загрузки питомцев', err);
+      } finally {
+        setLoadingPets(false);
       }
     };
 
-    if (appState === 'main') {
-      loadPets();
-    }
+    if (appState === 'main') loadPets();
   }, [appState, user]);
 
   if (isLoading || appState === 'splash') return <SplashScreen />;
@@ -92,7 +97,6 @@ function MainApp() {
         </View>
 
         <ScrollView contentContainerStyle={styles.content}>
-
           {/* Welcome */}
           <View style={styles.welcomeCard}>
             <Text style={styles.welcomeTitle}>Добро пожаловать!</Text>
@@ -101,7 +105,7 @@ function MainApp() {
             </Text>
           </View>
 
-          {/* Add pet */}
+          {/* Add pet button */}
           <TouchableOpacity
             style={styles.addPetButton}
             onPress={() => setAppState('addPet')}
@@ -110,37 +114,57 @@ function MainApp() {
           </TouchableOpacity>
 
           {/* Pets list */}
+          {loadingPets && <ActivityIndicator style={{ marginTop: 20 }} />}
+
           {pets.length > 0 && (
             <View style={styles.petsContainer}>
-
               <Text style={styles.petsTitle}>Ваши питомцы</Text>
 
-              {pets.map((pet) => (
-                <View key={pet.id} style={styles.petCard}>
+              {pets.map((pet) => {
+                const health = analyzePetHealth(pet);
 
-                  <Text style={styles.petName}>{pet.name}</Text>
+                return (
+                  <View key={pet.id} style={styles.petCard}>
+                    <Text style={styles.petName}>{pet.name}</Text>
 
-                  <Text style={styles.petInfo}>
-                    {pet.species === 'dog' ? '🐶 Собака' : '🐱 Кошка'}
-                  </Text>
-
-                  {pet.breed_name && (
                     <Text style={styles.petInfo}>
-                      Порода: {pet.breed_name}
+                      {pet.species === 'dog' ? '🐶 Собака' : '🐱 Кошка'}
                     </Text>
-                  )}
 
-                </View>
-              ))}
+                    {pet.breed_name && (
+                      <Text style={styles.petInfo}>Порода: {pet.breed_name}</Text>
+                    )}
 
+                    {pet.weight && (
+                      <Text style={styles.petInfo}>Вес: {pet.weight} кг</Text>
+                    )}
+                    {pet.height && (
+                      <Text style={styles.petInfo}>Рост: {pet.height} см</Text>
+                    )}
+                    {pet.age && (
+                      <Text style={styles.petInfo}>Возраст: {pet.age} лет</Text>
+                    )}
+
+                    {/* Health analysis */}
+                    {health && (
+                      <View style={styles.healthContainer}>
+                        <Text style={styles.healthText}>
+                          Вес: {health.weightStatus === 'норма' ? '✅' : '⚠️'} {health.weightStatus}
+                        </Text>
+                        <Text style={styles.healthText}>
+                          Рост: {health.heightStatus === 'норма' ? '✅' : '⚠️'} {health.heightStatus}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
             </View>
           )}
-
         </ScrollView>
 
         {/* Bottom nav */}
         <View style={styles.bottomNav}>
-
           <TouchableOpacity style={styles.navButton}>
             <Text style={styles.navText}>?</Text>
           </TouchableOpacity>
@@ -166,9 +190,7 @@ function MainApp() {
               </Text>
             </TouchableOpacity>
           )}
-
         </View>
-
       </SafeAreaView>
     );
   }
@@ -201,11 +223,7 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-
-  container: {
-    flex: 1,
-    backgroundColor: '#F6F9F7'
-  },
+  container: { flex: 1, backgroundColor: '#F6F9F7' },
 
   header: {
     height: 70,
@@ -221,16 +239,9 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
 
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#2F4F4F',
-  },
+  title: { fontSize: 22, fontWeight: '700', color: '#2F4F4F' },
 
-  content: {
-    padding: 16,
-    paddingBottom: 120,
-  },
+  content: { padding: 16, paddingBottom: 120 },
 
   welcomeCard: {
     backgroundColor: '#FFFFFF',
@@ -243,17 +254,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
 
-  welcomeTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#2F4F4F',
-    marginBottom: 8,
-  },
+  welcomeTitle: { fontSize: 20, fontWeight: '700', color: '#2F4F4F', marginBottom: 8 },
 
-  welcomeText: {
-    fontSize: 16,
-    color: '#7A8F88',
-  },
+  welcomeText: { fontSize: 16, color: '#7A8F88' },
 
   addPetButton: {
     backgroundColor: '#7BC9A8',
@@ -262,22 +265,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  addPetButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  addPetButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
 
-  petsContainer: {
-    marginTop: 30,
-  },
+  petsContainer: { marginTop: 30 },
 
-  petsTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 12,
-    color: '#2F4F4F',
-  },
+  petsTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12, color: '#2F4F4F' },
 
   petCard: {
     backgroundColor: '#FFFFFF',
@@ -290,17 +282,13 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
 
-  petName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#2F4F4F',
-  },
+  petName: { fontSize: 18, fontWeight: '700', color: '#2F4F4F' },
 
-  petInfo: {
-    fontSize: 14,
-    color: '#7A8F88',
-    marginTop: 4,
-  },
+  petInfo: { fontSize: 14, color: '#7A8F88', marginTop: 4 },
+
+  healthContainer: { marginTop: 8 },
+
+  healthText: { fontSize: 14, color: '#4CAF50', fontWeight: '600' },
 
   bottomNav: {
     flexDirection: 'row',
@@ -317,15 +305,9 @@ const styles = StyleSheet.create({
     bottom: 25,
   },
 
-  navButton: {
-    flex: 1,
-    alignItems: 'center',
-  },
+  navButton: { flex: 1, alignItems: 'center' },
 
-  navText: {
-    fontSize: 24,
-    color: '#7A8F88',
-  },
+  navText: { fontSize: 24, color: '#7A8F88' },
 
   profileButton: {
     width: 50,
@@ -338,10 +320,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  profileText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#7BC9A8',
-  },
-
+  profileText: { fontSize: 18, fontWeight: '700', color: '#7BC9A8' },
 });

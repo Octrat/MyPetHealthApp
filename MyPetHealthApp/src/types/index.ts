@@ -34,6 +34,8 @@ export interface Pet {
   breed_name?: string;     // 🔹 добавляем это
   birth_date?: string;
   weight?: number;
+  height?: number;         // рост (см)   ← добавляем
+  age?: number;            // возраст     ← добавляем
   photo_url?: string;
   created_at?: string;
 }

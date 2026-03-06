@@ -61,9 +61,9 @@ export const petsAPI = {
   },
 
   // 🔹 Новый метод: получить список пород по виду
-  getBreeds: async (species: 'dog' | 'cat') => {
-    const response = await api.get(`/pets/breeds?species=${species}`);
-    return response.data; // [{id: 1, name: 'Лабрадор'}, ...]
+  getBreeds: async (species: 'dog' | 'cat', search: string = '') => {
+    const response = await api.get(`/pets/breeds?species=${species}&search=${search}`);
+    return response.data;
   },
 };
 

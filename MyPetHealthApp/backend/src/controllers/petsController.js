@@ -11,14 +11,17 @@ export const getPets = async (req, res) => {
     const result = await pool.query(
       `
       SELECT
-        p.id,
-        p.name,
-        p.species,
-        p.breed_id,
-        b.name AS breed_name
-      FROM pets p
-      LEFT JOIN breeds b ON p.breed_id = b.id
-      WHERE p.user_id = $1
+      p.id,
+      p.name,
+      p.species,
+      p.breed_id,
+      p.weight,
+      p.height,
+      p.age,
+      b.name AS breed_name
+    FROM pets p
+    LEFT JOIN breeds b ON p.breed_id = b.id
+    WHERE p.user_id = $1
       `,
       [userId]
     );
