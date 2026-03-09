@@ -30,13 +30,18 @@ export interface Pet {
   user_id: number;
   name: string;
   species: 'dog' | 'cat';
-  breed_id?: number;       // id породы
-  breed_name?: string;     // 🔹 добавляем это
+  breed_id?: number;
+  breed_name?: string;
   birth_date?: string;
   weight?: number;
-  height?: number;         // рост (см)   ← добавляем
-  age?: number;            // возраст     ← добавляем
+  height?: number;
+  age?: number;
   photo_url?: string;
+
+  // Новые свойства
+  sex?: 'male' | 'female';
+  neutered?: boolean;
+
   created_at?: string;
 }
 // Тип для породы

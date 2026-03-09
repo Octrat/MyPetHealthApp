@@ -1,15 +1,8 @@
 // App.tsx
 import React, { useState, useEffect } from 'react';
 import { 
-  StyleSheet, 
-  View, 
-  Text, 
-  SafeAreaView, 
-  StatusBar, 
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  Dimensions
+  StyleSheet, View, Text, SafeAreaView, StatusBar, 
+  TouchableOpacity, ScrollView, ActivityIndicator, Dimensions 
 } from 'react-native';
 
 import AddPetScreen from './components/AddPetScreen';
@@ -22,10 +15,25 @@ import { AuthProvider, useAuth } from './src/hooks/AuthContext';
 import { petsAPI } from './src/services/api';
 import { Pet } from './src/types';
 import { analyzePetHealthByCategory } from './src/utils/healthCheck';
+import { dogAdultWeight, catAdultWeight } from './src/utils/growthStandards';
 
 type AppState = 'splash' | 'login' | 'register' | 'main' | 'profile' | 'addPet';
 
-const screenWidth = Dimensions.get('window').width - 32;
+// Функция для определения sizeCategory по весу
+function getSizeCategory(pet: Pet): 'toy' | 'small' | 'medium' | 'large' | 'giant' {
+  const w = pet.weight ?? 0;
+  if (pet.species === 'dog') {
+    if (w < 4) return 'toy';
+    if (w < 10) return 'small';
+    if (w < 20) return 'medium';
+    if (w < 35) return 'large';
+    return 'giant';
+  } else {
+    if (w < 3) return 'small';
+    if (w < 5) return 'medium';
+    return 'large';
+  }
+}
 
 function MainApp() {
   const [appState, setAppState] = useState<AppState>('splash');
@@ -33,11 +41,11 @@ function MainApp() {
   const [pets, setPets] = useState<Pet[]>([]);
   const [loadingPets, setLoadingPets] = useState(false);
 
+  const screenWidth = Dimensions.get('window').width - 32;
+
   useEffect(() => {
     if (appState === 'splash') {
-      const timer = setTimeout(() => {
-        setAppState(user ? 'main' : 'login');
-      }, 2000);
+      const timer = setTimeout(() => setAppState(user ? 'main' : 'login'), 2000);
       return () => clearTimeout(timer);
     }
   }, [appState, user]);
@@ -68,29 +76,24 @@ function MainApp() {
   if (appState === 'addPet') return <AddPetScreen onBack={() => setAppState('main')} />;
   if (appState === 'profile') return <ProfileScreen onBack={() => setAppState('main')} onLogout={async () => { await logout(); setAppState('login'); }} />;
 
-  // Главный экран
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F6F9F7" />
 
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>🐾 HealthyPaws</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Welcome */}
         <View style={styles.welcomeCard}>
           <Text style={styles.welcomeTitle}>Добро пожаловать!</Text>
           <Text style={styles.welcomeText}>Заботьтесь о здоровье вашего питомца вместе с HealthyPaws.</Text>
         </View>
 
-        {/* Add pet button */}
         <TouchableOpacity style={styles.addPetButton} onPress={() => setAppState('addPet')}>
           <Text style={styles.addPetButtonText}>➕ Добавить питомца</Text>
         </TouchableOpacity>
 
-        {/* Pets list */}
         {loadingPets && <ActivityIndicator style={{ marginTop: 20 }} />}
 
         {pets.length > 0 && (
@@ -98,19 +101,19 @@ function MainApp() {
             <Text style={styles.petsTitle}>Ваши питомцы</Text>
 
             {pets.map((pet) => {
+              const sizeCategory = getSizeCategory(pet);
               const health = analyzePetHealthByCategory({
-                sizeCategory: 'medium',
+                sizeCategory,
                 weight: pet.weight ?? 0,
                 height: pet.height ?? 0,
                 age: pet.age ?? 0,
-                sex: 'male',
-                neutered: false,
+                sex: (pet.sex as 'male' | 'female') ?? 'male',
+                neutered: pet.neutered ?? false,
               });
 
-              // Простейший график через <View>
-              const maxGraphHeight = 150; // px
-              const weightHeight = Math.min((pet.weight ?? 0) * 2, maxGraphHeight);
-              const heightHeight = Math.min((pet.height ?? 0), maxGraphHeight);
+              // Норма для графика
+              const adultWeight = pet.species === 'dog' ? dogAdultWeight[sizeCategory] : catAdultWeight[sizeCategory] ?? 4;
+              const adultHeight = pet.height ?? 0; // грубо, можно расширить
 
               return (
                 <View key={pet.id} style={styles.petCard}>
@@ -121,22 +124,18 @@ function MainApp() {
                   {pet.height && <Text style={styles.petInfo}>Рост: {pet.height} см</Text>}
                   {pet.age && <Text style={styles.petInfo}>Возраст: {pet.age} лет</Text>}
 
-                  {/* Health */}
                   {health && (
                     <View style={styles.healthContainer}>
-                      <Text style={styles.healthText}>Вес: {health.weightStatus === 'норма' ? '✅' : '⚠️'} {health.weightStatus}</Text>
-                      <Text style={styles.healthText}>Рост: {health.heightStatus === 'норма' ? '✅' : '⚠️'} {health.heightStatus}</Text>
+                      <Text style={styles.healthText}>Вес: {health.weightStatus === 'норма' ? '✅' : '⚠️'} {health.weightStatus} (норма: {health.weightRange.min}-{health.weightRange.max})</Text>
+                      <Text style={styles.healthText}>Рост: {health.heightStatus === 'норма' ? '✅' : '⚠️'} {health.heightStatus} (норма: {health.heightRange.min}-{health.heightRange.max})</Text>
                     </View>
                   )}
 
-                  {/* Мини-график */}
+                  {/* Простейший график с нормой через View */}
                   <View style={styles.chartContainer}>
-                    <View style={[styles.bar, { height: weightHeight, backgroundColor: '#4BC1C1' }]} />
-                    <View style={[styles.bar, { height: heightHeight, backgroundColor: '#FF6384' }]} />
-                  </View>
-                  <View style={styles.chartLabels}>
-                    <Text style={styles.chartLabel}>Вес</Text>
-                    <Text style={styles.chartLabel}>Рост</Text>
+                    <View style={[styles.chartBar, { height: (pet.weight ?? 0) * 5, backgroundColor: '#4CAF50' }]} />
+                    <View style={[styles.chartBar, { height: adultWeight * 5, backgroundColor: '#AAAAAA' }]} />
+                    <Text style={{ textAlign: 'center', marginTop: 4 }}>Вес / Норма</Text>
                   </View>
                 </View>
               );
@@ -145,7 +144,6 @@ function MainApp() {
         )}
       </ScrollView>
 
-      {/* Bottom nav */}
       <View style={styles.bottomNav}>
         <TouchableOpacity style={styles.navButton}><Text style={styles.navText}>?</Text></TouchableOpacity>
         <TouchableOpacity style={styles.navButton} onPress={() => setAppState('main')}><Text style={styles.navText}>🏠</Text></TouchableOpacity>
@@ -185,10 +183,8 @@ const styles = StyleSheet.create({
   petInfo: { fontSize: 14, color: '#7A8F88', marginTop: 4 },
   healthContainer: { marginTop: 8 },
   healthText: { fontSize: 14, color: '#4CAF50', fontWeight: '600' },
-  chartContainer: { flexDirection: 'row', height: 150, marginTop: 12, justifyContent: 'space-around', alignItems: 'flex-end' },
-  bar: { width: (screenWidth - 64) / 4, borderRadius: 6 },
-  chartLabels: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 4, paddingHorizontal: 16 },
-  chartLabel: { fontSize: 12, color: '#7A8F88' },
+  chartContainer: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 12, height: 150, alignItems: 'flex-end' },
+  chartBar: { width: 40, borderRadius: 6 },
   bottomNav: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 70, width: '90%', backgroundColor: '#FFFFFF', borderRadius: 20, elevation: 5, alignSelf: 'center', paddingHorizontal: 20, position: 'absolute', bottom: 25 },
   navButton: { flex: 1, alignItems: 'center' },
   navText: { fontSize: 24, color: '#7A8F88' },
