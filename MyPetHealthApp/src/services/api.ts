@@ -37,7 +37,6 @@ export const petsAPI = {
     return response.data;
   },
 
-  // Добавить нового питомца
   addPet: async (
     userId: number,
     name: string,
@@ -45,7 +44,9 @@ export const petsAPI = {
     breedId: number,
     weight: number,
     height: number,
-    age: number
+    age: number,
+    sex: 'male' | 'female',
+    neutered: boolean
   ) => {
     const response = await api.post('/pets', {
       user_id: userId,
@@ -55,6 +56,8 @@ export const petsAPI = {
       weight,
       height,
       age,
+      sex,
+      neutered,
     });
   
     return response.data;
