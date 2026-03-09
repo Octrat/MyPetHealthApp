@@ -42,6 +42,9 @@ export interface Pet {
   sex?: 'male' | 'female';
   neutered?: boolean;
 
+  // Добавляем breed_size_category
+  breed_size_category?: 'toy' | 'small' | 'medium' | 'large' | 'giant';
+
   created_at?: string;
 }
 // Тип для породы

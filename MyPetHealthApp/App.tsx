@@ -109,7 +109,7 @@ function MainApp() {
             {pets.map((pet) => {
               // Для анализа здоровья
               const health = analyzePetHealthByCategory({
-                sizeCategory: (pet.size_category ?? 'medium') as SizeCategory,
+                sizeCategory: (pet.breed_size_category ?? 'medium') as SizeCategory,
                 weight: pet.weight ?? 0,
                 height: pet.height ?? 0,
                 age: pet.age ?? 0,

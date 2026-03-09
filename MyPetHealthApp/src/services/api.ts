@@ -30,11 +30,31 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// src/services/api.ts
 export const petsAPI = {
-  // Получить питомцев пользователя
   getPets: async (userId: number) => {
-    const response = await api.get(`/pets?user_id=${userId}`);
-    return response.data;
+    // получаем питомцев
+    const petsResponse = await api.get(`/pets?user_id=${userId}`);
+    const pets = petsResponse.data; // массив Pet[]
+
+    // получаем все породы для собак и кошек
+    const dogBreeds = await api.get(`/pets/breeds?species=dog`);
+    const catBreeds = await api.get(`/pets/breeds?species=cat`);
+    const breeds = [...dogBreeds.data, ...catBreeds.data];
+
+    // создаем словарь breed_id -> size_category
+    const breedsMap: Record<number, string> = {};
+    breeds.forEach((breed: any) => {
+      breedsMap[breed.id] = breed.size_category; // 'toy' | 'small' | ...
+    });
+
+    // добавляем к каждому питомцу поле breed_size_category
+    const petsWithSize = pets.map((pet: any) => ({
+      ...pet,
+      breed_size_category: breedsMap[pet.breed_id] ?? 'medium', // если нет данных — 'medium'
+    }));
+
+    return petsWithSize;
   },
 
   addPet: async (
@@ -63,7 +83,6 @@ export const petsAPI = {
     return response.data;
   },
 
-  // 🔹 Новый метод: получить список пород по виду
   getBreeds: async (species: 'dog' | 'cat', search: string = '') => {
     const response = await api.get(`/pets/breeds?species=${species}&search=${search}`);
     return response.data;
