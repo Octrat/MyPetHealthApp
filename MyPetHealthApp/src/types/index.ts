@@ -4,6 +4,8 @@ export interface User {
   email: string;
   name?: string;       // имя опционально
   created_at?: string;
+  avatar_path?: string; // ✅ добавляем поле
+
 }
 
 // Типы для API ответов

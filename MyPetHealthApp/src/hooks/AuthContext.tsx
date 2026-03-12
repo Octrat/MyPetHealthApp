@@ -18,7 +18,6 @@ interface AuthContextProps {
   updateUser: (data: Partial<User>) => Promise<void>;
 }
 
-// 🔹 IP твоего Mac
 const BASE_URL = 'http://192.168.0.59:3001/api/auth';
 const USER_URL = 'http://192.168.0.59:3001/api/user';
 
@@ -28,7 +27,6 @@ const useAuthLogic = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Проверка токена при запуске
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -53,15 +51,14 @@ const useAuthLogic = () => {
       });
 
       const result = await response.json();
-
       if (!response.ok) return { success: false, error: result.message || 'Ошибка входа' };
 
       const user: User = result.user;
       const token: string = result.token;
 
       await AsyncStorage.setItem('userToken', token);
-      await AsyncStorage.setItem('userData', JSON.stringify(user));
-      setUser(user);
+      await AsyncStorage.setItem('userData', JSON.stringify({ ...user, avatar_path: user.avatar_path || '' }));
+      setUser({ ...user, avatar_path: user.avatar_path || '' });
 
       return { success: true, data: { token, user } };
     } catch (error) {
@@ -72,8 +69,7 @@ const useAuthLogic = () => {
 
   const register = async (data: RegisterData): Promise<AuthResult> => {
     try {
-      const payload = { email: data.email, password: data.password }; // имя не отправляем
-
+      const payload = { email: data.email, password: data.password };
       const response = await fetch(`${BASE_URL}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -81,15 +77,14 @@ const useAuthLogic = () => {
       });
 
       const result = await response.json();
-
       if (!response.ok) return { success: false, error: result.message || 'Ошибка регистрации' };
 
       const user: User = result.user;
       const token: string = result.token;
 
       await AsyncStorage.setItem('userToken', token);
-      await AsyncStorage.setItem('userData', JSON.stringify(user));
-      setUser(user);
+      await AsyncStorage.setItem('userData', JSON.stringify({ ...user, avatar_path: user.avatar_path || '' }));
+      setUser({ ...user, avatar_path: user.avatar_path || '' });
 
       return { success: true, data: { token, user } };
     } catch (error) {
@@ -104,10 +99,8 @@ const useAuthLogic = () => {
     setUser(null);
   };
 
-  // 🔹 Обновление пользователя на сервере и локально
   const updateUser = async (data: Partial<User>) => {
     if (!user) return;
-
     try {
       const token = await AsyncStorage.getItem('userToken');
       const response = await fetch(USER_URL, {
@@ -120,11 +113,10 @@ const useAuthLogic = () => {
       });
 
       const result = await response.json();
-
       if (!response.ok) throw new Error(result.message || 'Ошибка обновления');
 
-      // Обновляем локально и в AsyncStorage
-      const updatedUser = { ...user, ...result.user };
+      // Сохраняем новые данные локально, мержим с текущим user
+      const updatedUser = { ...user, ...data, ...result.user };
       setUser(updatedUser);
       await AsyncStorage.setItem('userData', JSON.stringify(updatedUser));
     } catch (error) {
@@ -136,13 +128,11 @@ const useAuthLogic = () => {
   return { user, isLoading, login, register, logout, updateUser };
 };
 
-// 🔹 Провайдер
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const auth = useAuthLogic();
   return <AuthContext.Provider value={auth}>{children}</AuthContext.Provider>;
 };
 
-// 🔹 Хук для компонентов
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) throw new Error('useAuth must be used within an AuthProvider');
