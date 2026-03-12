@@ -19,8 +19,8 @@ interface AuthContextProps {
 }
 
 // 🔹 IP твоего Mac
-const BASE_URL = 'http://192.168.0.98:3001/api/auth';
-const USER_URL = 'http://192.168.0.98:3001/api/user';
+const BASE_URL = 'http://192.168.0.59:3001/api/auth';
+const USER_URL = 'http://192.168.0.59:3001/api/user';
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
 
