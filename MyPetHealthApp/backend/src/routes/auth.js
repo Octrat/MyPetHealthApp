@@ -1,3 +1,4 @@
+///Users/mariabelobruh/Desktop/Учеба/Итог/MyPetHealthApp/backend/src/routes/auth.js
 import express from 'express';
 import { authController } from '../controllers/authController.js';
 import { authenticateToken } from '../middleware/auth.js';

@@ -1,3 +1,4 @@
+///Users/mariabelobruh/Desktop/Учеба/Итог/MyPetHealthApp/backend/src/middleware/auth.js
 import jwt from 'jsonwebtoken';
 
 export const authenticateToken = (req, res, next) => {

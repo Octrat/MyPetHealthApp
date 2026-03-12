@@ -1,3 +1,4 @@
+///Users/mariabelobruh/Desktop/Учеба/Итог/MyPetHealthApp/backend/src/routes/avatar.js
 import express from 'express';
 import multer from 'multer';
 import { authenticateToken } from '../middleware/auth.js';
@@ -27,9 +28,9 @@ router.post('/', authenticateToken, upload.single('avatar'), async (req, res) =>
 
     // Обновляем avatar_path в users
     await pool.query(
-      'UPDATE users SET avatar_path = $1 WHERE id = $2',
-      [avatarPath, req.user.id]
-    );
+        'UPDATE users SET avatar_path = $1 WHERE id = $2',
+        [avatarPath, req.user.userId] // ✅ используем userId из токена
+      );
 
     res.json({ avatar_url: avatarPath });
   } catch (error) {

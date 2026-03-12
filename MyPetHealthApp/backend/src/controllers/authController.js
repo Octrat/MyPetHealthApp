@@ -1,3 +1,4 @@
+///Users/mariabelobruh/Desktop/Учеба/Итог/MyPetHealthApp/backend/src/controllers/authController.js
 import { User } from '../models/User.js';
 import jwt from 'jsonwebtoken';
 
@@ -42,7 +43,8 @@ export const authController = {
         user: {
           id: user.id,
           email: user.email,
-          name: user.name || '' // пустая строка для клиента
+          name: user.name || '',
+          avatar_path: user.avatar_path || '' // 🔹 добавляем
         }
       });
 
@@ -92,7 +94,8 @@ export const authController = {
         user: {
           id: user.id,
           email: user.email,
-          name: user.name || ''
+          name: user.name || '',
+          avatar_path: user.avatar_path || '' // 🔹 добавляем
         }
       });
   
@@ -117,7 +120,8 @@ export const authController = {
         user: {
           id: user.id,
           email: user.email,
-          name: user.name || '' // пустая строка для клиента
+          name: user.name || '',
+          avatar_path: user.avatar_path || '' // 🔹 добавляем
         } 
       });
     } catch (error) {
