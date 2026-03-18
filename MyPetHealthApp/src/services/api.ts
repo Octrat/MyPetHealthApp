@@ -43,19 +43,25 @@ export const petsAPI = {
     const catBreeds = await api.get(`/pets/breeds?species=cat`);
     const breeds = [...dogBreeds.data, ...catBreeds.data];
 
-    // создаем словарь breed_id -> size_category
-    const breedsMap: Record<number, string> = {};
+    // создаем словарь breed_id -> {name, name_ru, size_category}
+    const breedsMap: Record<number, { name: string; name_ru?: string; size_category?: string }> = {};
     breeds.forEach((breed: any) => {
-      breedsMap[breed.id] = breed.size_category; // 'toy' | 'small' | ...
+      breedsMap[breed.id] = {
+        name: breed.name,
+        name_ru: breed.name_ru,
+        size_category: breed.size_category,
+      };
     });
 
-    // добавляем к каждому питомцу поле breed_size_category
-    const petsWithSize = pets.map((pet: any) => ({
+    // добавляем к каждому питомцу поля breed_name, breed_name_ru и breed_size_category
+    const petsWithBreedInfo = pets.map((pet: any) => ({
       ...pet,
-      breed_size_category: breedsMap[pet.breed_id] ?? 'medium', // если нет данных — 'medium'
+      breed_name: breedsMap[pet.breed_id]?.name,
+      breed_name_ru: breedsMap[pet.breed_id]?.name_ru,
+      breed_size_category: breedsMap[pet.breed_id]?.size_category ?? 'medium',
     }));
 
-    return petsWithSize;
+    return petsWithBreedInfo;
   },
 
   addPet: async (

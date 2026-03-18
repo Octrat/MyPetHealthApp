@@ -1,3 +1,5 @@
+// src/types/index.ts
+
 // Типы для пользователя
 export interface User {
   id: number;
@@ -5,7 +7,6 @@ export interface User {
   name?: string;       // имя опционально
   created_at?: string;
   avatar_path?: string; // ✅ добавляем поле
-
 }
 
 // Типы для API ответов
@@ -25,7 +26,7 @@ export interface RegisterData {
   password: string;
   // name больше не передаем
 }
-// Тип питомца
+
 // Тип питомца
 export interface Pet {
   id: number;
@@ -34,21 +35,21 @@ export interface Pet {
   species: 'dog' | 'cat';
   breed_id?: number;
   breed_name?: string;
+  breed_name_ru?: string;
   birth_date?: string;
-  weight?: number;
+  weight: number; // ⚡ сделали обязательным
   height?: number;
-  age?: number;
+  age: number;    // ⚡ сделали обязательным
   photo_url?: string;
 
-  // Новые свойства
   sex?: 'male' | 'female';
   neutered?: boolean;
 
-  // Добавляем breed_size_category
   breed_size_category?: 'toy' | 'small' | 'medium' | 'large' | 'giant';
 
   created_at?: string;
 }
+
 // Тип для породы
 export interface Breed {
   id: number;
@@ -57,6 +58,19 @@ export interface Breed {
   size_category?: 'toy' | 'small' | 'medium' | 'large' | 'giant';
 }
 
+// Тип медикамента
+export interface Medication {
+  id: number;
+  name: string;
+  species: 'dog' | 'cat';
+  age_min: number;
+  age_max: number;
+  weight_min: number;
+  weight_max: number;
+  type: 'antiparasitic' | 'deworming' | 'vaccination';
+  application_interval_days: number;
+  notes: string;
+}
 
 // Ответ API для питомцев
 export interface PetsResponse {

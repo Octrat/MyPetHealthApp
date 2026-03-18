@@ -17,6 +17,7 @@ import SplashScreen from './components/SplashScreen';
 import LoginScreen from './components/LoginScreen';
 import RegisterScreen from './components/RegisterScreen';
 import ProfileScreen from './components/ProfileScreen';
+import PetMedicationsScreen from './components/PetMedicationsScreen';
 
 import { AuthProvider, useAuth } from './src/hooks/AuthContext';
 import { petsAPI } from './src/services/api';
@@ -25,7 +26,7 @@ import { analyzePetHealthByCategory, SizeCategory } from './src/utils/healthChec
 
 const BASE_URL = 'http://192.168.0.59:3001';
 
-type AppState = 'splash' | 'login' | 'register' | 'main' | 'profile' | 'addPet';
+type AppState = 'splash' | 'login' | 'register' | 'main' | 'profile' | 'addPet' | 'medications';
 
 function MainApp() {
   const [appState, setAppState] = useState<AppState>('splash');
@@ -75,6 +76,7 @@ function MainApp() {
         }}
       />
     );
+  if (appState === 'medications') return <PetMedicationsScreen onBack={() => setAppState('main')} pets={pets} />;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -116,26 +118,129 @@ function MainApp() {
                 <View key={pet.id} style={styles.petCard}>
                   <Text style={styles.petName}>{pet.name}</Text>
                   <Text style={styles.petInfo}>{pet.species === 'dog' ? '🐶 Собака' : '🐱 Кошка'}</Text>
-                  {pet.breed_name && <Text style={styles.petInfo}>Порода: {pet.breed_name}</Text>}
-                  {pet.weight && <Text style={styles.petInfo}>Вес: {pet.weight} кг</Text>}
-                  {pet.height && <Text style={styles.petInfo}>Рост: {pet.height} см</Text>}
-                  {pet.age && <Text style={styles.petInfo}>Возраст: {pet.age} лет</Text>}
+                  {pet.breed_name && (
+                    <Text style={styles.petInfo}>
+                      Порода: {pet.breed_name}
+                      {pet.breed_name_ru ? ` - ${pet.breed_name_ru}` : ''}
+                    </Text>
+                  )}
+                  {pet.weight != null && <Text style={styles.petInfo}>Вес: {pet.weight} кг</Text>}
+                  {pet.height != null && <Text style={styles.petInfo}>Рост: {pet.height} см</Text>}
+                  {pet.age != null && <Text style={styles.petInfo}>Возраст: {pet.age} лет</Text>}
 
                   {health && (
                     <View style={styles.chartsSection}>
                       <Text style={styles.chartsTitle}>Сравнение с нормой</Text>
 
+                      {/* Вес */}
                       <View style={styles.metricCard}>
-                        <Text style={styles.metricName}>⚖️ Вес</Text>
-                        <Text style={styles.petInfo}>
-                          {pet.weight} кг / {health.weightRange?.min}-{health.weightRange?.max} кг
+                        <View style={styles.metricHeader}>
+                          <View style={styles.metricTitleContainer}>
+                            <Text style={styles.metricEmoji}>⚖️</Text>
+                            <Text style={styles.metricName}>Вес</Text>
+                          </View>
+                          <View style={styles.metricValues}>
+                            <Text style={styles.currentValue}>{pet.weight ?? 0} кг</Text>
+                            <Text style={styles.separator}>/</Text>
+                            <Text style={styles.idealValue}>
+                              {health.weightRange?.min}-{health.weightRange?.max} кг
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.comparisonBar}>
+                          <View style={styles.idealRangeBar}>
+                            <View
+                              style={[
+                                styles.idealRange,
+                                {
+                                  left: `${((health.weightRange?.min ?? 0) / (health.weightRange?.max ?? 1)) * 100}%`,
+                                  width: `${((health.weightRange?.max ?? 0) - (health.weightRange?.min ?? 0)) / (health.weightRange?.max ?? 1) * 100}%`
+                                }
+                              ]}
+                            />
+                          </View>
+
+                          <View
+                            style={[
+                              styles.currentMarker,
+                              {
+                                left: `${Math.min((pet.weight ?? 0) / (health.weightRange?.max ?? 1) * 100, 100)}%`,
+                              }
+                            ]}
+                          >
+                            <View
+                              style={[
+                                styles.markerDot,
+                                { backgroundColor: health.weightStatus === 'норма' ? '#4CAF50' : '#FF6347' },
+                              ]}
+                            />
+                          </View>
+                        </View>
+
+                        <Text
+                          style={[
+                            styles.statusText,
+                            { color: health.weightStatus === 'норма' ? '#4CAF50' : '#FF6347' },
+                          ]}
+                        >
+                          {health.weightStatus === 'норма' ? '✓ В норме' : '⚠ Отклонение'}
                         </Text>
                       </View>
 
+                      {/* Рост */}
                       <View style={styles.metricCard}>
-                        <Text style={styles.metricName}>📏 Рост</Text>
-                        <Text style={styles.petInfo}>
-                          {pet.height} см / {health.heightRange?.min}-{health.heightRange?.max} см
+                        <View style={styles.metricHeader}>
+                          <View style={styles.metricTitleContainer}>
+                            <Text style={styles.metricEmoji}>📏</Text>
+                            <Text style={styles.metricName}>Рост</Text>
+                          </View>
+                          <View style={styles.metricValues}>
+                            <Text style={styles.currentValue}>{pet.height ?? 0} см</Text>
+                            <Text style={styles.separator}>/</Text>
+                            <Text style={styles.idealValue}>
+                              {health.heightRange?.min}-{health.heightRange?.max} см
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.comparisonBar}>
+                          <View style={styles.idealRangeBar}>
+                            <View
+                              style={[
+                                styles.idealRange,
+                                {
+                                  left: `${((health.heightRange?.min ?? 0) / (health.heightRange?.max ?? 1)) * 100}%`,
+                                  width: `${((health.heightRange?.max ?? 0) - (health.heightRange?.min ?? 0)) / (health.heightRange?.max ?? 1) * 100}%`
+                                }
+                              ]}
+                            />
+                          </View>
+
+                          <View
+                            style={[
+                              styles.currentMarker,
+                              {
+                                left: `${Math.min((pet.height ?? 0) / (health.heightRange?.max ?? 1) * 100, 100)}%`,
+                              }
+                            ]}
+                          >
+                            <View
+                              style={[
+                                styles.markerDot,
+                                { backgroundColor: health.heightStatus === 'норма' ? '#4CAF50' : '#FF6347' },
+                              ]}
+                            />
+                          </View>
+                        </View>
+
+                        <Text
+                          style={[
+                            styles.statusText,
+                            { color: health.heightStatus === 'норма' ? '#4CAF50' : '#FF6347' },
+                          ]}
+                        >
+                          {health.heightStatus === 'норма' ? '✓ В норме' : '⚠ Отклонение'}
                         </Text>
                       </View>
                     </View>
@@ -149,8 +254,8 @@ function MainApp() {
 
       {/* Bottom nav */}
       <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navButton}>
-          <Text style={styles.navText}>?</Text>
+        <TouchableOpacity style={styles.navButton} onPress={() => setAppState('medications')}>
+          <Text style={styles.navText}>📅</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.navButton} onPress={() => setAppState('main')}>
@@ -170,7 +275,7 @@ function MainApp() {
               />
             ) : (
               <Text style={styles.profileText}>
-                {(user.name ?? user.email).charAt(0).toUpperCase()}
+                {((user.name ?? user.email ?? ' ')[0] || '').toUpperCase()}
               </Text>
             )}
           </TouchableOpacity>
@@ -253,6 +358,87 @@ const styles = StyleSheet.create({
   },
 
   metricName: { fontSize: 15, fontWeight: '600' },
+
+  metricHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+
+  metricTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  metricEmoji: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  metricValues: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  currentValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2F4F4F',
+  },
+  separator: {
+    fontSize: 14,
+    color: '#A0B8B0',
+    marginHorizontal: 4,
+  },
+  idealValue: {
+    fontSize: 14,
+    color: '#7A8F88',
+  },
+  comparisonBar: {
+    height: 40,
+    position: 'relative',
+    marginBottom: 8,
+  },
+  idealRangeBar: {
+    position: 'absolute',
+    top: 16,
+    left: 0,
+    right: 0,
+    height: 8,
+    backgroundColor: '#E8F0EC',
+    borderRadius: 4,
+  },
+  idealRange: {
+    position: 'absolute',
+    top: 0,
+    height: 8,
+    backgroundColor: '#C5E0D4',
+    borderRadius: 4,
+  },
+  currentMarker: {
+    position: 'absolute',
+    top: 8,
+    width: 24,
+    height: 24,
+    marginLeft: -12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  markerDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  statusText: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 4,
+  },
 
   bottomNav: {
     flexDirection: 'row',
