@@ -1,3 +1,4 @@
+//Users/mariabelobruh/Desktop/Учеба/Итог/MyPetHealthApp/backend/scripts/importBreeds.js
 import axios from 'axios';
 import pool from '../src/config/database.js';
 import dotenv from 'dotenv';

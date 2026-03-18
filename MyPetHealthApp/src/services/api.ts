@@ -1,3 +1,4 @@
+//Users/mariabelobruh/Desktop/Учеба/Итог/MyPetHealthApp/src/services/api.ts
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthResponse, LoginCredentials, RegisterData, User } from '../types';
