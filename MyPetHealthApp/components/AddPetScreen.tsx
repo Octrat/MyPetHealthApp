@@ -16,7 +16,12 @@ import { Pet } from '../src/types';
 import { petsAPI } from '../src/services/api';
 import { analyzePetHealthByCategory, SizeCategory } from '../src/utils/healthCheck';
 
-type Breed = { id: number; name: string; size_category: SizeCategory };
+type Breed = { 
+  id: number; 
+  name: string; 
+  name_ru?: string; 
+  size_category: SizeCategory 
+};
 
 type Props = { onBack: () => void };
 
@@ -225,7 +230,9 @@ export default function AddPetScreen({ onBack }: Props) {
                       setBreedOptions([]);
                     }}
                   >
-                    <Text>{b.name}</Text>
+                    <Text>
+                    {b.name_ru ? `${b.name_ru} (${b.name})` : b.name}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>

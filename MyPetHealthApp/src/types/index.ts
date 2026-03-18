@@ -53,6 +53,8 @@ export interface Pet {
 export interface Breed {
   id: number;
   name: string;
+  name_ru?: string;
+  size_category?: 'toy' | 'small' | 'medium' | 'large' | 'giant';
 }
 
 

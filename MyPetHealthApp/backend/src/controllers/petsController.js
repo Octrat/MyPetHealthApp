@@ -84,10 +84,17 @@ export const getBreeds = async (req, res) => {
   try {
     const result = await pool.query(
       `
-      SELECT id, name
+      SELECT 
+        id, 
+        name, 
+        name_ru,
+        size_category
       FROM breeds
       WHERE species = $1
-      AND name ILIKE $2
+      AND (
+        name ILIKE $2
+        OR name_ru ILIKE $2
+      )
       ORDER BY name
       LIMIT 20
       `,
