@@ -10,11 +10,15 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useAuth } from '../src/hooks/AuthContext';
 import { Pet } from '../src/types';
 import { petsAPI } from '../src/services/api';
 import { analyzePetHealthByCategory, SizeCategory } from '../src/utils/healthCheck';
+import { AppScreen } from '../src/types/navigation';
+
+const BASE_URL = 'http://192.168.0.59:3001';
 
 type Breed = { 
   id: number; 
@@ -23,9 +27,12 @@ type Breed = {
   size_category: SizeCategory 
 };
 
-type Props = { onBack: () => void };
+type Props = { 
+  onBack: () => void;
+  onNavigate?: (screen: AppScreen) => void;
+};
 
-export default function AddPetScreen({ onBack }: Props) {
+export default function AddPetScreen({ onBack, onNavigate }: Props) {
   const { user } = useAuth();
 
   const [name, setName] = useState('');
@@ -42,6 +49,12 @@ export default function AddPetScreen({ onBack }: Props) {
 
   const [pets, setPets] = useState<Pet[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const firstLetter = user?.name 
+    ? user.name.charAt(0).toUpperCase() 
+    : user?.email.charAt(0).toUpperCase() || '?';
+
+  const avatarUri = user?.avatar_path ? `${BASE_URL}${user.avatar_path}` : '';
 
   // Загрузка питомцев
   useEffect(() => {
@@ -125,6 +138,21 @@ export default function AddPetScreen({ onBack }: Props) {
         }
       }
 
+      Alert.alert(
+        'Успешно',
+        'Питомец добавлен!',
+        [
+          { 
+            text: 'Остаться здесь', 
+            style: 'cancel' 
+          },
+          { 
+            text: 'На главную', 
+            onPress: () => onNavigate?.('main') 
+          }
+        ]
+      );
+
       // Сброс формы
       setName('');
       setSpecies(null);
@@ -146,7 +174,11 @@ export default function AddPetScreen({ onBack }: Props) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <TouchableOpacity onPress={onBack} style={styles.backButtonWrapper}>
           <Text style={styles.backButton}>← Назад</Text>
         </TouchableOpacity>
@@ -156,7 +188,13 @@ export default function AddPetScreen({ onBack }: Props) {
         {/* Имя */}
         <View style={styles.formGroup}>
           <Text style={styles.label}>Имя питомца</Text>
-          <TextInput style={styles.input} placeholder="Введите имя" value={name} onChangeText={setName} />
+          <TextInput 
+            style={styles.input} 
+            placeholder="Введите имя" 
+            placeholderTextColor="#9BB8AE"
+            value={name} 
+            onChangeText={setName} 
+          />
         </View>
 
         {/* Тип */}
@@ -170,7 +208,7 @@ export default function AddPetScreen({ onBack }: Props) {
                 onPress={() => setSpecies(s as 'dog' | 'cat')}
               >
                 <Text style={[styles.speciesButtonText, species === s && styles.speciesButtonTextSelected]}>
-                  {s === 'dog' ? 'Собака' : 'Кошка'}
+                  {s === 'dog' ? '🐶 Собака' : '🐱 Кошка'}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -188,7 +226,7 @@ export default function AddPetScreen({ onBack }: Props) {
                 onPress={() => setSex(p as 'male' | 'female')}
               >
                 <Text style={[styles.speciesButtonText, sex === p && styles.speciesButtonTextSelected]}>
-                  {p === 'male' ? 'Мальчик' : 'Девочка'}
+                  {p === 'male' ? '👦 Мальчик' : '👧 Девочка'}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -203,7 +241,7 @@ export default function AddPetScreen({ onBack }: Props) {
             onPress={() => setNeutered(!neutered)}
           >
             <Text style={[styles.speciesButtonText, neutered && styles.speciesButtonTextSelected]}>
-              {neutered ? 'Да' : 'Нет'}
+              {neutered ? '✅ Да' : '❌ Нет'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -215,6 +253,7 @@ export default function AddPetScreen({ onBack }: Props) {
             <TextInput
               style={styles.input}
               placeholder="Начните вводить породу"
+              placeholderTextColor="#9BB8AE"
               value={breedQuery}
               onChangeText={(text) => { setBreedQuery(text); setSelectedBreed(null); }}
             />
@@ -230,8 +269,8 @@ export default function AddPetScreen({ onBack }: Props) {
                       setBreedOptions([]);
                     }}
                   >
-                    <Text>
-                    {b.name_ru ? `${b.name_ru} (${b.name})` : b.name}
+                    <Text style={styles.autocompleteText}>
+                      {b.name_ru ? `${b.name_ru} (${b.name})` : b.name}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -243,57 +282,272 @@ export default function AddPetScreen({ onBack }: Props) {
         {/* Вес */}
         <View style={styles.formGroup}>
           <Text style={styles.label}>Вес (кг)</Text>
-          <TextInput style={styles.input} placeholder="Введите вес" keyboardType="numeric" value={weight} onChangeText={setWeight} />
+          <TextInput 
+            style={styles.input} 
+            placeholder="Введите вес" 
+            placeholderTextColor="#9BB8AE"
+            keyboardType="numeric" 
+            value={weight} 
+            onChangeText={setWeight} 
+          />
         </View>
 
         {/* Рост */}
         <View style={styles.formGroup}>
           <Text style={styles.label}>Рост (см)</Text>
-          <TextInput style={styles.input} placeholder="Введите рост" keyboardType="numeric" value={height} onChangeText={setHeight} />
+          <TextInput 
+            style={styles.input} 
+            placeholder="Введите рост" 
+            placeholderTextColor="#9BB8AE"
+            keyboardType="numeric" 
+            value={height} 
+            onChangeText={setHeight} 
+          />
         </View>
 
         {/* Возраст */}
         <View style={styles.formGroup}>
           <Text style={styles.label}>Возраст (лет)</Text>
-          <TextInput style={styles.input} placeholder="Введите возраст" keyboardType="numeric" value={age} onChangeText={setAge} />
+          <TextInput 
+            style={styles.input} 
+            placeholder="Введите возраст" 
+            placeholderTextColor="#9BB8AE"
+            keyboardType="numeric" 
+            value={age} 
+            onChangeText={setAge} 
+          />
         </View>
 
         {/* Сохранить */}
-        <TouchableOpacity style={styles.saveButton} onPress={savePet} disabled={loading}>
-          <Text style={styles.saveButtonText}>{loading ? 'Сохраняем...' : '💾 Сохранить'}</Text>
+        <TouchableOpacity 
+          style={[styles.saveButton, loading && styles.saveButtonDisabled]} 
+          onPress={savePet} 
+          disabled={loading}
+        >
+          <Text style={styles.saveButtonText}>
+            {loading ? '⏳ Сохраняем...' : '💾 Сохранить питомца'}
+          </Text>
         </TouchableOpacity>
 
-        {loading && <ActivityIndicator style={{ marginTop: 20 }} />}
+        {loading && <ActivityIndicator style={{ marginTop: 20 }} color="#7BC9A8" />}
       </ScrollView>
+
+      {/* Bottom Navigation */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity 
+          style={styles.navButton} 
+          onPress={() => onNavigate?.('medications')}
+        >
+          <Text style={styles.navText}>📅</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.navButton} 
+          onPress={() => onNavigate?.('main')}
+        >
+          <Text style={styles.navText}>🏠</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.navButton}
+          onPress={() => Alert.alert('Добавление питомца', 'Заполните все поля, чтобы добавить нового питомца')}
+        >
+          <Text style={styles.navText}>?</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.profileButton, styles.activeProfileButton]} 
+          onPress={() => onNavigate?.('profile')}
+        >
+          {avatarUri ? (
+            <Image source={{ uri: avatarUri }} style={styles.profileAvatar} />
+          ) : (
+            <Text style={styles.profileText}>{firstLetter}</Text>
+          )}
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F6F9F7' },
-  scrollContent: { padding: 16 },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#F6F9F7' 
+  },
+  
+  scrollContent: { 
+    padding: 16,
+    paddingBottom: 120,
+  },
 
-  backButtonWrapper: { marginBottom: 20 },
-  backButton: { color: '#7BC9A8', fontSize: 16 },
+  backButtonWrapper: { 
+    marginBottom: 12 
+  },
+  
+  backButton: { 
+    color: '#7BC9A8', 
+    fontSize: 16,
+    fontWeight: '500',
+  },
 
-  title: { fontSize: 22, fontWeight: '700', color: '#2F4F4F', marginBottom: 10 },
+  title: { 
+    fontSize: 24, 
+    fontWeight: '700', 
+    color: '#2F4F4F', 
+    marginBottom: 20,
+    textAlign: 'center',
+  },
 
-  formGroup: { marginBottom: 20 },
+  formGroup: { 
+    marginBottom: 20 
+  },
 
-  label: { fontSize: 16, marginBottom: 8, color: '#2F4F4F' },
+  label: { 
+    fontSize: 15, 
+    marginBottom: 8, 
+    color: '#2F4F4F',
+    fontWeight: '600',
+  },
 
-  input: { backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, fontSize: 16, borderWidth: 1, borderColor: '#CFEDE2' },
+  input: { 
+    backgroundColor: '#FFFFFF', 
+    borderRadius: 16, 
+    paddingHorizontal: 16, 
+    paddingVertical: 14, 
+    fontSize: 16, 
+    borderWidth: 1, 
+    borderColor: '#E8F0EC',
+    color: '#2F4F4F',
+  },
 
-  speciesButtons: { flexDirection: 'row', gap: 16 },
+  speciesButtons: { 
+    flexDirection: 'row', 
+    gap: 12,
+  },
 
-  speciesButton: { flex: 1, borderWidth: 1, borderColor: '#CFEDE2', borderRadius: 12, paddingVertical: 12, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' },
-  speciesButtonSelected: { backgroundColor: '#7BC9A8' },
-  speciesButtonText: { fontSize: 16, color: '#2F4F4F' },
-  speciesButtonTextSelected: { color: '#fff', fontWeight: '700' },
+  speciesButton: { 
+    flex: 1, 
+    borderWidth: 1, 
+    borderColor: '#E8F0EC', 
+    borderRadius: 16, 
+    paddingVertical: 14, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    backgroundColor: '#FFFFFF',
+  },
+  
+  speciesButtonSelected: { 
+    backgroundColor: '#7BC9A8',
+    borderColor: '#7BC9A8',
+  },
+  
+  speciesButtonText: { 
+    fontSize: 15, 
+    color: '#2F4F4F',
+    fontWeight: '500',
+  },
+  
+  speciesButtonTextSelected: { 
+    color: '#FFFFFF', 
+    fontWeight: '600',
+  },
 
-  saveButton: { marginTop: 20, backgroundColor: '#4CAF50', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  saveButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  saveButton: { 
+    marginTop: 20, 
+    backgroundColor: '#7BC9A8', 
+    paddingVertical: 16, 
+    borderRadius: 18, 
+    alignItems: 'center' 
+  },
+  
+  saveButtonDisabled: {
+    backgroundColor: '#B8E0D0',
+  },
+  
+  saveButtonText: { 
+    color: '#FFFFFF', 
+    fontSize: 16, 
+    fontWeight: '700' 
+  },
 
-  autocompleteList: { marginTop: 4, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#CFEDE2', maxHeight: 150 },
-  autocompleteItem: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#CFEDE2' },
+  autocompleteList: { 
+    marginTop: 4, 
+    backgroundColor: '#FFFFFF', 
+    borderRadius: 16, 
+    borderWidth: 1, 
+    borderColor: '#E8F0EC', 
+    maxHeight: 150,
+    elevation: 3,
+  },
+  
+  autocompleteItem: { 
+    padding: 12, 
+    borderBottomWidth: 1, 
+    borderBottomColor: '#E8F0EC' 
+  },
+
+  autocompleteText: {
+    color: '#2F4F4F',
+    fontSize: 14,
+  },
+
+  // Bottom Navigation Styles
+  bottomNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    height: 70,
+    width: '90%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: -2 },
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    position: 'absolute',
+    bottom: 25,
+  },
+  
+  navButton: { 
+    flex: 1, 
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  
+  navText: { 
+    fontSize: 24, 
+    color: '#7A8F88',
+  },
+  
+  profileButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#7BC9A8',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  
+  activeProfileButton: {
+    borderColor: '#2F4F4F',
+    borderWidth: 3,
+  },
+  
+  profileAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+  },
+  
+  profileText: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    color: '#7BC9A8' 
+  },
 });

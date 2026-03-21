@@ -9,7 +9,8 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Image
+  Image,
+  Alert
 } from 'react-native';
 
 import AddPetScreen from './components/AddPetScreen';
@@ -23,13 +24,14 @@ import { AuthProvider, useAuth } from './src/hooks/AuthContext';
 import { petsAPI } from './src/services/api';
 import { Pet } from './src/types';
 import { analyzePetHealthByCategory, SizeCategory } from './src/utils/healthCheck';
+import { AppScreen } from './src/types/navigation';
 
 const BASE_URL = 'http://192.168.0.59:3001';
 
-type AppState = 'splash' | 'login' | 'register' | 'main' | 'profile' | 'addPet' | 'medications';
-
 function MainApp() {
-  const [appState, setAppState] = useState<AppState>('splash');
+  const isActive = (screen: AppScreen) => {
+    return appState === screen;};
+  const [appState, setAppState] = useState<AppScreen>('splash');
   const { user, logout, isLoading } = useAuth();
   const [pets, setPets] = useState<Pet[]>([]);
   const [loadingPets, setLoadingPets] = useState(false);
@@ -62,10 +64,26 @@ function MainApp() {
   }, [appState, user]);
 
   if (isLoading || appState === 'splash') return <SplashScreen />;
-  if (appState === 'login') return <LoginScreen onSwitchToRegister={() => setAppState('register')} />;
+  
+  if (appState === 'login') 
+    return <LoginScreen onSwitchToRegister={() => setAppState('register')} />;
+  
   if (appState === 'register')
-    return <RegisterScreen onRegister={() => setAppState('main')} onSwitchToLogin={() => setAppState('login')} />;
-  if (appState === 'addPet') return <AddPetScreen onBack={() => setAppState('main')} />;
+    return (
+      <RegisterScreen 
+        onRegister={() => setAppState('main')} 
+        onSwitchToLogin={() => setAppState('login')} 
+      />
+    );
+  
+  if (appState === 'addPet') 
+    return (
+      <AddPetScreen 
+        onBack={() => setAppState('main')}
+        onNavigate={(screen: AppScreen) => setAppState(screen)}
+      />
+    );
+  
   if (appState === 'profile')
     return (
       <ProfileScreen
@@ -74,10 +92,20 @@ function MainApp() {
           await logout();
           setAppState('login');
         }}
+        onNavigate={(screen: AppScreen) => setAppState(screen)}
       />
     );
-  if (appState === 'medications') return <PetMedicationsScreen onBack={() => setAppState('main')} pets={pets} />;
+  
+  if (appState === 'medications')
+    return (
+      <PetMedicationsScreen
+        onBack={() => setAppState('main')}
+        pets={pets}
+        onNavigate={(screen: AppScreen) => setAppState(screen)}
+      />
+    );
 
+  // Main screen - здесь appState может быть только 'main'
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F6F9F7" />
@@ -254,33 +282,58 @@ function MainApp() {
 
       {/* Bottom nav */}
       <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navButton} onPress={() => setAppState('medications')}>
-          <Text style={styles.navText}>📅</Text>
-        </TouchableOpacity>
+  <TouchableOpacity 
+    style={styles.navButton} 
+    onPress={() => setAppState('medications')}
+  >
+    <Text style={[
+      styles.navText,
+      isActive('medications') && styles.activeNavText
+    ]}>
+      📅
+    </Text>
+  </TouchableOpacity>
 
-        <TouchableOpacity style={styles.navButton} onPress={() => setAppState('main')}>
-          <Text style={styles.navText}>🏠</Text>
-        </TouchableOpacity>
+  <TouchableOpacity 
+    style={styles.navButton} 
+    onPress={() => setAppState('main')}
+  >
+    <Text style={[
+      styles.navText,
+      isActive('main') && styles.activeNavText
+    ]}>
+      🏠
+    </Text>
+  </TouchableOpacity>
 
-        <TouchableOpacity style={styles.navButton}>
-          <Text style={styles.navText}>?</Text>
-        </TouchableOpacity>
+  <TouchableOpacity 
+    style={styles.navButton}
+    onPress={() => Alert.alert('Информация', 'HealthyPaws - приложение для заботы о здоровье ваших питомцев')}
+  >
+    <Text style={styles.navText}>?</Text>
+  </TouchableOpacity>
 
-        {user && (
-          <TouchableOpacity style={styles.profileButton} onPress={() => setAppState('profile')}>
-            {user.avatar_path ? (
-              <Image
-                source={{ uri: `${BASE_URL}${user.avatar_path}?t=${Date.now()}` }}
-                style={styles.profileAvatar}
-              />
-            ) : (
-              <Text style={styles.profileText}>
-                {((user.name ?? user.email ?? ' ')[0] || '').toUpperCase()}
-              </Text>
-            )}
-          </TouchableOpacity>
-        )}
-      </View>
+  {user && (
+    <TouchableOpacity 
+      style={[
+        styles.profileButton,
+        isActive('profile') && styles.activeProfileButton
+      ]} 
+      onPress={() => setAppState('profile')}
+    >
+      {user.avatar_path ? (
+        <Image
+          source={{ uri: `${BASE_URL}${user.avatar_path}?t=${Date.now()}` }}
+          style={styles.profileAvatar}
+        />
+      ) : (
+        <Text style={styles.profileText}>
+          {((user.name ?? user.email ?? ' ')[0] || '').toUpperCase()}
+        </Text>
+      )}
+    </TouchableOpacity>
+  )}
+</View>
     </SafeAreaView>
   );
 }
@@ -449,15 +502,31 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
     elevation: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: -2 },
     alignSelf: 'center',
     paddingHorizontal: 20,
     position: 'absolute',
     bottom: 25,
   },
 
-  navButton: { flex: 1, alignItems: 'center' },
+  navButton: { 
+    flex: 1, 
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
 
-  navText: { fontSize: 24, color: '#7A8F88' },
+  navText: { 
+    fontSize: 24, 
+    color: '#7A8F88',
+  },
+  
+  activeNavText: {
+    color: '#7BC9A8',
+    fontWeight: '600',
+  },
 
   profileButton: {
     width: 50,
@@ -476,5 +545,14 @@ const styles = StyleSheet.create({
     borderRadius: 23,
   },
 
-  profileText: { fontSize: 18, fontWeight: '700', color: '#7BC9A8' },
+  profileText: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    color: '#7BC9A8' 
+  },
+  
+  activeProfileButton: {
+    borderColor: '#2F4F4F',
+    borderWidth: 3,
+  },
 });

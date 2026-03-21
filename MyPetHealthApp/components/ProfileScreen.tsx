@@ -1,3 +1,4 @@
+// components/ProfileScreen.tsx
 import React, { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -13,10 +14,17 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../src/hooks/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppScreen } from '../src/types/navigation';
 
-const BASE_URL = 'http://192.168.0.59:3001'; // сервер для формирования URL аватара
+const BASE_URL = 'http://192.168.0.59:3001';
 
-export default function ProfileScreen({ onLogout, onBack, goHome }: any) {
+interface ProfileScreenProps {
+  onLogout: () => void;
+  onBack: () => void;
+  onNavigate?: (screen: AppScreen) => void;
+}
+
+export default function ProfileScreen({ onLogout, onBack, onNavigate }: ProfileScreenProps) {
   const { user, updateUser } = useAuth();
   const [editableName, setEditableName] = useState(user?.name || '');
   const [isSaving, setIsSaving] = useState(false);
@@ -56,9 +64,9 @@ export default function ProfileScreen({ onLogout, onBack, goHome }: any) {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: 'images', // ✅ правильно — маленькими буквами
+      mediaTypes: 'images',
       quality: 0.8,
-    }); 
+    });
 
     if (!result.canceled && result.assets.length > 0) {
       const image = result.assets[0];
@@ -87,7 +95,6 @@ export default function ProfileScreen({ onLogout, onBack, goHome }: any) {
         const resJson = await response.json();
         if (!response.ok) throw new Error(resJson.message || 'Ошибка загрузки');
 
-        // Обновляем локально user
         await updateUser({ avatar_path: resJson.avatar_url });
         Alert.alert('Успешно', 'Аватар обновлен!');
       } catch (error) {
@@ -99,9 +106,12 @@ export default function ProfileScreen({ onLogout, onBack, goHome }: any) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.header}>
-          <TouchableOpacity onPress={onBack}>
+          <TouchableOpacity onPress={onBack} style={styles.backButton}>
             <Text style={styles.backText}>← Назад</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Профиль</Text>
@@ -148,29 +158,229 @@ export default function ProfileScreen({ onLogout, onBack, goHome }: any) {
           <Text style={styles.logoutButtonText}>Выйти</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Bottom Navigation */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity 
+          style={styles.navButton} 
+          onPress={() => onNavigate?.('medications')}
+        >
+          <Text style={styles.navText}>📅</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.navButton} 
+          onPress={() => onNavigate?.('main')}
+        >
+          <Text style={styles.navText}>🏠</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.navButton}
+          onPress={() => Alert.alert('Информация', 'Ваш профиль - здесь вы можете изменить имя и аватар')}
+        >
+          <Text style={styles.navText}>?</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.profileButton, styles.activeProfileButton]}
+          onPress={() => onNavigate?.('profile')}
+        >
+          {avatarUri ? (
+            <Image source={{ uri: avatarUri }} style={styles.profileAvatar} />
+          ) : (
+            <Text style={styles.profileText}>{firstLetter}</Text>
+          )}
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  scrollContent: { padding: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  backText: { fontSize: 18, color: '#333' },
-  headerTitle: { fontSize: 22, fontWeight: 'bold' },
-  avatarContainer: { alignItems: 'center', marginVertical: 20 },
-  avatar: { width: 120, height: 120, borderRadius: 60 },
-  avatarFallback: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#ccc', justifyContent: 'center', alignItems: 'center' },
-  avatarLetter: { fontSize: 48, color: '#fff' },
-  changeAvatarButton: { marginTop: 10, padding: 8, backgroundColor: '#4CAF50', borderRadius: 8 },
-  changeAvatarText: { color: '#fff', fontWeight: 'bold' },
-  card: { marginVertical: 10, padding: 15, backgroundColor: '#f2f2f2', borderRadius: 8 },
-  label: { fontWeight: 'bold', marginBottom: 5 },
-  input: { backgroundColor: '#fff', padding: 10, borderRadius: 6, borderWidth: 1, borderColor: '#ccc' },
-  saveButton: { marginTop: 10, backgroundColor: '#4CAF50', padding: 10, borderRadius: 6 },
-  saveButtonDisabled: { backgroundColor: '#a5d6a7' },
-  saveButtonText: { color: '#fff', fontWeight: 'bold', textAlign: 'center' },
-  value: { fontSize: 16 },
-  logoutButton: { marginTop: 20, backgroundColor: '#f44336', padding: 10, borderRadius: 6 },
-  logoutButtonText: { color: '#fff', fontWeight: 'bold', textAlign: 'center' },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#F6F9F7' 
+  },
+  scrollContent: { 
+    padding: 20,
+    paddingBottom: 120,
+  },
+  header: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  backButton: {
+    padding: 8,
+  },
+  backText: { 
+    fontSize: 16, 
+    color: '#7A8F88',
+    fontWeight: '500',
+  },
+  headerTitle: { 
+    fontSize: 20, 
+    fontWeight: '700',
+    color: '#2F4F4F',
+  },
+  avatarContainer: { 
+    alignItems: 'center', 
+    marginVertical: 20 
+  },
+  avatar: { 
+    width: 120, 
+    height: 120, 
+    borderRadius: 60,
+    borderWidth: 3,
+    borderColor: '#7BC9A8',
+  },
+  avatarFallback: { 
+    width: 120, 
+    height: 120, 
+    borderRadius: 60, 
+    backgroundColor: '#7BC9A8', 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+  },
+  avatarLetter: { 
+    fontSize: 48, 
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  changeAvatarButton: { 
+    marginTop: 12, 
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#7BC9A8', 
+    borderRadius: 20,
+  },
+  changeAvatarText: { 
+    color: '#FFFFFF', 
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  card: { 
+    marginVertical: 8, 
+    padding: 20, 
+    backgroundColor: '#FFFFFF', 
+    borderRadius: 22,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  label: { 
+    fontWeight: '600', 
+    marginBottom: 8,
+    color: '#2F4F4F',
+    fontSize: 15,
+  },
+  input: { 
+    backgroundColor: '#F8FCFA', 
+    padding: 14, 
+    borderRadius: 16, 
+    borderWidth: 1, 
+    borderColor: '#E8F0EC',
+    fontSize: 16,
+    color: '#2F4F4F',
+  },
+  saveButton: { 
+    marginTop: 12, 
+    backgroundColor: '#7BC9A8', 
+    padding: 14, 
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  saveButtonDisabled: { 
+    backgroundColor: '#B8E0D0',
+  },
+  saveButtonText: { 
+    color: '#FFFFFF', 
+    fontWeight: '600', 
+    fontSize: 16,
+  },
+  value: { 
+    fontSize: 16,
+    color: '#2F4F4F',
+    backgroundColor: '#F8FCFA',
+    padding: 14,
+    borderRadius: 16,
+  },
+  logoutButton: { 
+    marginTop: 20, 
+    backgroundColor: '#FF6B6B', 
+    padding: 16, 
+    borderRadius: 18,
+    alignItems: 'center',
+  },
+  logoutButtonText: { 
+    color: '#FFFFFF', 
+    fontWeight: '700', 
+    fontSize: 16,
+  },
+
+  // Bottom Navigation Styles
+  bottomNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    height: 70,
+    width: '90%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: -2 },
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    position: 'absolute',
+    bottom: 25,
+  },
+  navButton: { 
+    flex: 1, 
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  navText: { 
+    fontSize: 24, 
+    color: '#7A8F88',
+  },
+  activeNavButton: {
+    // Для подсветки активной кнопки
+  },
+  activeNavText: {
+    color: '#7BC9A8',
+    fontWeight: '600',
+  },
+  profileButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#7BC9A8',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  activeProfileButton: {
+    borderColor: '#2F4F4F',
+    borderWidth: 3,
+  },
+  profileAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+  },
+  profileText: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    color: '#7BC9A8' 
+  },
 });
