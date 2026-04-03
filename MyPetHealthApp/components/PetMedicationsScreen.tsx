@@ -19,7 +19,7 @@ interface PetMedicationsScreenProps {
 
 // Фильтруем препараты по питомцу
 const getMedicationsForPet = (pet: Pet): Medication[] => {
-  if (pet.age == null || pet.weight == null) return []; // безопасно проверяем undefined
+  if (pet.age == null || pet.weight == null) return [];
   return rawMedicationsData.filter((med) =>
     med.species === pet.species &&
     pet.age >= med.age_min &&
@@ -34,6 +34,10 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({ pets, onBac
   const { user } = useAuth();
   const [selectedPet, setSelectedPet] = useState<Pet | null>(pets[0] || null);
   const [medications, setMedications] = useState<Medication[]>([]);
+
+  const isActive = (screen: AppScreen) => {
+    return screen === 'medications';
+  };
 
   useEffect(() => {
     if (selectedPet) {
@@ -114,7 +118,7 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({ pets, onBac
                 </Text>
                 <TouchableOpacity 
                   style={styles.updatePetButton}
-                  onPress={() => onNavigate?.('main')}
+                  onPress={() => onNavigate?.('addPet')}
                 >
                   <Text style={styles.updatePetButtonText}>Перейти к питомцам</Text>
                 </TouchableOpacity>
@@ -147,32 +151,48 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({ pets, onBac
         </>
       )}
 
-      {/* Bottom Navigation */}
+      {/* Bottom Navigation с иконкой собачки */}
       <View style={styles.bottomNav}>
+        {/* 📅 Календарь (активный) */}
         <TouchableOpacity 
-          style={[styles.navButton, styles.activeNavButton]} 
+          style={styles.navButton} 
           onPress={() => onNavigate?.('medications')}
         >
-          <Text style={[styles.navText, styles.activeNavText]}>📅</Text>
+          <Text style={[
+            styles.navText,
+            isActive('medications') && styles.activeNavText
+          ]}>
+            📅
+          </Text>
         </TouchableOpacity>
 
+        {/* 🏠 Главная */}
         <TouchableOpacity 
           style={styles.navButton} 
           onPress={() => onNavigate?.('main')}
         >
-          <Text style={styles.navText}>🏠</Text>
+          <Text style={[
+            styles.navText,
+            isActive('main') && styles.activeNavText
+          ]}>
+            🏠
+          </Text>
         </TouchableOpacity>
 
+        {/* 🐶 Питомцы */}
         <TouchableOpacity 
-          style={styles.navButton}
-          onPress={() => Alert.alert(
-            'О препаратах', 
-            'Здесь отображаются рекомендуемые препараты для вашего питомца на основе его возраста и веса. Следуйте рекомендациям ветеринара.'
-          )}
+          style={styles.navButton} 
+          onPress={() => onNavigate?.('addPet')}
         >
-          <Text style={styles.navText}>?</Text>
+          <Text style={[
+            styles.navText,
+            isActive('addPet') && styles.activeNavText
+          ]}>
+            🐶
+          </Text>
         </TouchableOpacity>
 
+        {/* 👤 Профиль */}
         <TouchableOpacity 
           style={styles.profileButton}
           onPress={() => onNavigate?.('profile')}
@@ -418,9 +438,6 @@ const styles = StyleSheet.create({
   navText: { 
     fontSize: 24, 
     color: '#7A8F88',
-  },
-  activeNavButton: {
-    // Стиль для активной кнопки
   },
   activeNavText: {
     color: '#7BC9A8',

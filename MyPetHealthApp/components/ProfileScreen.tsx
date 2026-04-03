@@ -16,7 +16,7 @@ import { useAuth } from '../src/hooks/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppScreen } from '../src/types/navigation';
 
-const BASE_URL = 'http://192.168.0.59:3001';
+const BASE_URL = 'http://192.168.0.92:3001';
 
 interface ProfileScreenProps {
   onLogout: () => void;
@@ -29,6 +29,10 @@ export default function ProfileScreen({ onLogout, onBack, onNavigate }: ProfileS
   const [editableName, setEditableName] = useState(user?.name || '');
   const [isSaving, setIsSaving] = useState(false);
   const [avatarUri, setAvatarUri] = useState(user?.avatar_path ? `${BASE_URL}${user.avatar_path}` : '');
+
+  const isActive = (screen: AppScreen) => {
+    return screen === 'profile';
+  };
 
   useEffect(() => {
     if (user?.name) setEditableName(user.name);
@@ -159,31 +163,53 @@ export default function ProfileScreen({ onLogout, onBack, onNavigate }: ProfileS
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Bottom Navigation */}
+      {/* Bottom Navigation с иконкой собачки */}
       <View style={styles.bottomNav}>
+        {/* 📅 Календарь */}
         <TouchableOpacity 
           style={styles.navButton} 
           onPress={() => onNavigate?.('medications')}
         >
-          <Text style={styles.navText}>📅</Text>
+          <Text style={[
+            styles.navText,
+            isActive('medications') && styles.activeNavText
+          ]}>
+            📅
+          </Text>
         </TouchableOpacity>
 
+        {/* 🏠 Главная */}
         <TouchableOpacity 
           style={styles.navButton} 
           onPress={() => onNavigate?.('main')}
         >
-          <Text style={styles.navText}>🏠</Text>
+          <Text style={[
+            styles.navText,
+            isActive('main') && styles.activeNavText
+          ]}>
+            🏠
+          </Text>
         </TouchableOpacity>
 
+        {/* 🐶 Питомцы */}
         <TouchableOpacity 
-          style={styles.navButton}
-          onPress={() => Alert.alert('Информация', 'Ваш профиль - здесь вы можете изменить имя и аватар')}
+          style={styles.navButton} 
+          onPress={() => onNavigate?.('addPet')}
         >
-          <Text style={styles.navText}>?</Text>
+          <Text style={[
+            styles.navText,
+            isActive('addPet') && styles.activeNavText
+          ]}>
+            🐶
+          </Text>
         </TouchableOpacity>
 
+        {/* 👤 Профиль (активный) */}
         <TouchableOpacity 
-          style={[styles.profileButton, styles.activeProfileButton]}
+          style={[
+            styles.profileButton,
+            isActive('profile') && styles.activeProfileButton
+          ]} 
           onPress={() => onNavigate?.('profile')}
         >
           {avatarUri ? (
@@ -351,9 +377,6 @@ const styles = StyleSheet.create({
   navText: { 
     fontSize: 24, 
     color: '#7A8F88',
-  },
-  activeNavButton: {
-    // Для подсветки активной кнопки
   },
   activeNavText: {
     color: '#7BC9A8',
