@@ -6,7 +6,7 @@ import { useAuth } from '../src/hooks/AuthContext';
 import { AppScreen } from '../src/types/navigation';
 import rawMedicationsDataJson from '../src/data/medications.json';
 
-const BASE_URL = 'http://192.168.0.59:3001';
+const BASE_URL = 'http://192.168.0.77:3001';
 
 // Приводим JSON к типу Medication[]
 const rawMedicationsData = rawMedicationsDataJson as Medication[];

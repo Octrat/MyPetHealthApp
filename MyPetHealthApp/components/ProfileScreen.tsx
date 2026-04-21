@@ -16,7 +16,7 @@ import { useAuth } from '../src/hooks/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppScreen } from '../src/types/navigation';
 
-const BASE_URL = 'http://192.168.0.92:3001';
+const BASE_URL = 'http://192.168.0.77:3001';
 
 interface ProfileScreenProps {
   onLogout: () => void;

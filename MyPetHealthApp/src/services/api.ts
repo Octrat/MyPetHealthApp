@@ -6,7 +6,7 @@ import { AuthResponse, LoginCredentials, RegisterData, User } from '../types';
 // Базовый URL нашего бэкенда
 // Базовый URL нашего бэкенда через ngrok
 // /src/services/api.ts
-const API_URL = 'http://192.168.0.92:3001/api';
+const API_URL = 'http://192.168.0.77:3001/api';
 console.log('API URL:', API_URL);  // должно выводиться в консоли Expo
 
 

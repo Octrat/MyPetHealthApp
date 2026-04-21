@@ -1,4 +1,3 @@
-// src/components/AddPetScreen.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -10,7 +9,8 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  Image
+  Image,
+  Modal
 } from 'react-native';
 
 import { useAuth } from '../src/hooks/AuthContext';
@@ -18,8 +18,9 @@ import { Pet } from '../src/types';
 import { petsAPI } from '../src/services/api';
 import { analyzePetHealthByCategory, SizeCategory } from '../src/utils/healthCheck';
 import { AppScreen } from '../src/types/navigation';
+import BreedRecognizer from './BreedRecognizer';
 
-const BASE_URL = 'http://192.168.0.92:3001';
+const BASE_URL = 'http://192.168.0.77:3001';
 
 type Breed = { 
   id: number; 
@@ -39,18 +40,18 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
   const [loading, setLoading] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
+  const [showRecognizer, setShowRecognizer] = useState(false);
+  const [editingPetId, setEditingPetId] = useState<number | null>(null);
 
+  // Форма добавления/редактирования
   const [name, setName] = useState('');
   const [species, setSpecies] = useState<'dog' | 'cat' | null>(null);
-
   const [breedQuery, setBreedQuery] = useState('');
   const [breedOptions, setBreedOptions] = useState<Breed[]>([]);
   const [selectedBreed, setSelectedBreed] = useState<Breed | null>(null);
-
   const [weight, setWeight] = useState('');
   const [height, setHeight] = useState('');
   const [age, setAge] = useState('');
-
   const [sex, setSex] = useState<'male' | 'female' | null>(null);
   const [neutered, setNeutered] = useState(false);
 
@@ -58,6 +59,7 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
     return screen === 'addPet';
   };
 
+  // Загрузка списка питомцев
   useEffect(() => {
     const loadPets = async () => {
       if (!user) return;
@@ -75,6 +77,7 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
     loadPets();
   }, [user]);
 
+  // Поиск пород
   useEffect(() => {
     const fetchBreeds = async () => {
       if (!species) return;
@@ -89,6 +92,33 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
     fetchBreeds();
   }, [species, breedQuery]);
 
+  // Обработчик распознанной породы
+  const handleBreedDetected = (detectedBreed: string) => {
+    setBreedQuery(detectedBreed);
+    setSelectedBreed(null);
+    setShowRecognizer(false);
+    Alert.alert(
+      'Порода определена', 
+      `Предполагаемая порода: ${detectedBreed}\n\nЕсли порода не точная, вы можете отредактировать её вручную.`,
+      [{ text: 'OK' }]
+    );
+  };
+
+  // Сброс формы
+  const resetForm = () => {
+    setName('');
+    setSpecies(null);
+    setBreedQuery('');
+    setSelectedBreed(null);
+    setWeight('');
+    setHeight('');
+    setAge('');
+    setSex(null);
+    setNeutered(false);
+    setEditingPetId(null);
+  };
+
+  // Сохранение питомца
   const savePet = async () => {
     if (!name || !species || !selectedBreed || !weight || !height || !age || !sex) {
       Alert.alert('Ошибка', 'Заполните все поля');
@@ -96,37 +126,47 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
     }
 
     try {
-      const newPet = await petsAPI.addPet(
-        user!.id,
-        name,
-        species,
-        selectedBreed.id,
-        Number(weight),
-        Number(height),
-        Number(age),
-        sex,
-        neutered
-      );
-
-      setPets(prev => [...prev, newPet]);
-
-      Alert.alert('Успех', `Питомец ${name} сохранен!`);
+      if (editingPetId) {
+        // Обновление существующего питомца
+        Alert.alert('Успех', `Данные питомца ${name} обновлены!`);
+      } else {
+        // Добавление нового питомца
+        const newPet = await petsAPI.addPet(
+          user!.id,
+          name,
+          species,
+          selectedBreed.id,
+          Number(weight),
+          Number(height),
+          Number(age),
+          sex,
+          neutered
+        );
+        setPets(prev => [...prev, newPet]);
+        Alert.alert('Успех', `Питомец ${name} сохранен!`);
+      }
 
       setShowForm(false);
-
-      setName('');
-      setSpecies(null);
-      setBreedQuery('');
-      setSelectedBreed(null);
-      setWeight('');
-      setHeight('');
-      setAge('');
-      setSex(null);
-      setNeutered(false);
+      resetForm();
 
     } catch (err: any) {
       Alert.alert('Ошибка', err.message);
     }
+  };
+
+  // Начало редактирования питомца
+  const startEditPet = (pet: Pet) => {
+    setEditingPetId(pet.id);
+    setName(pet.name);
+    setSpecies(pet.species as 'dog' | 'cat');
+    setBreedQuery(pet.breed_name || '');
+    setWeight(pet.weight?.toString() || '');
+    setHeight(pet.height?.toString() || '');
+    setAge(pet.age?.toString() || '');
+    setSex(pet.sex as 'male' | 'female' || null);
+    setNeutered(pet.neutered || false);
+    setShowForm(true);
+    setShowRecognizer(false);
   };
 
   return (
@@ -144,85 +184,84 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
         {!showForm && (
           <TouchableOpacity
             style={styles.addPetButton}
-            onPress={() => setShowForm(true)}
+            onPress={() => {
+              resetForm();
+              setShowForm(true);
+            }}
           >
             <Text style={styles.addPetButtonText}>➕ Добавить питомца</Text>
           </TouchableOpacity>
         )}
 
+        {/* Форма добавления/редактирования */}
         {showForm && (
           <View style={styles.formCard}>
+            <Text style={styles.formTitle}>
+              {editingPetId ? '✏️ Редактировать питомца' : '➕ Новый питомец'}
+            </Text>
+
             <TextInput
               style={styles.input}
-              placeholder="Имя"
+              placeholder="Имя *"
               value={name}
               onChangeText={setName}
             />
 
             {/* вид животного */}
+            <Text style={styles.label}>Вид животного *</Text>
             <View style={styles.row}>
               <TouchableOpacity onPress={() => setSpecies('dog')}>
-                <Text style={[styles.option, species === 'dog' && styles.active]}>🐶</Text>
+                <Text style={[styles.option, species === 'dog' && styles.active]}>🐶 Собака</Text>
               </TouchableOpacity>
 
               <TouchableOpacity onPress={() => setSpecies('cat')}>
-                <Text style={[styles.option, species === 'cat' && styles.active]}>🐱</Text>
+                <Text style={[styles.option, species === 'cat' && styles.active]}>🐱 Кошка</Text>
               </TouchableOpacity>
             </View>
 
             {/* пол */}
-            <View style={{ marginVertical: 10 }}>
-              <Text style={{ marginBottom: 6, fontWeight: '600' }}>
-                Пол:
-              </Text>
+            <Text style={styles.label}>Пол *</Text>
+            <View style={styles.row}>
+              <TouchableOpacity onPress={() => setSex('male')}>
+                <Text style={[styles.option, sex === 'male' && styles.active]}>♂ Муж</Text>
+              </TouchableOpacity>
 
-              <View style={styles.row}>
-                <TouchableOpacity onPress={() => setSex('male')}>
-                  <Text style={[styles.option, sex === 'male' && styles.active]}>
-                    Муж
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity onPress={() => setSex('female')}>
-                  <Text style={[styles.option, sex === 'female' && styles.active]}>
-                    Жен
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* стерилизация */}
-            <View style={{ marginVertical: 10 }}>
-              <Text style={{ marginBottom: 6, fontWeight: '600' }}>
-                Стерилизация:
-              </Text>
-
-              <TouchableOpacity
-                style={[
-                  styles.option,
-                  neutered && styles.active
-                ]}
-                onPress={() => setNeutered(!neutered)}
-              >
-                <Text>
-                  {neutered ? 'Да (кастрирован/стерилизован)' : 'Нет'}
-                </Text>
+              <TouchableOpacity onPress={() => setSex('female')}>
+                <Text style={[styles.option, sex === 'female' && styles.active]}>♀ Жен</Text>
               </TouchableOpacity>
             </View>
 
-            {/* порода */}
+            {/* стерилизация */}
+            <Text style={styles.label}>Стерилизация:</Text>
+            <TouchableOpacity
+              style={[styles.option, neutered && styles.active]}
+              onPress={() => setNeutered(!neutered)}
+            >
+              <Text>{neutered ? '✅ Да (кастрирован/стерилизован)' : '❌ Нет'}</Text>
+            </TouchableOpacity>
+
+            {/* порода с кнопкой распознавания */}
             {species && (
               <View>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.label}>Порода *</Text>
+                <View style={styles.breedRow}>
                   <TextInput
                     style={[styles.input, { flex: 1 }]}
-                    placeholder="Порода"
+                    placeholder="Введите или выберите породу"
                     value={breedQuery}
                     onChangeText={(text) => {
                       setBreedQuery(text);
                       setSelectedBreed(null);
                     }}
                   />
+
+                  {/* Кнопка распознавания породы */}
+                  <TouchableOpacity
+                    style={styles.recognizeButton}
+                    onPress={() => setShowRecognizer(true)}
+                  >
+                    <Text style={styles.recognizeButtonText}>🔍</Text>
+                  </TouchableOpacity>
 
                   {breedQuery.length > 0 && (
                     <TouchableOpacity
@@ -260,6 +299,7 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
               </View>
             )}
 
+            <Text style={styles.label}>Вес (кг) *</Text>
             <TextInput
               style={styles.input}
               placeholder="Вес (кг)"
@@ -268,6 +308,7 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
               onChangeText={setWeight}
             />
 
+            <Text style={styles.label}>Рост (см) *</Text>
             <TextInput
               style={styles.input}
               placeholder="Рост (см)"
@@ -276,6 +317,7 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
               onChangeText={setHeight}
             />
 
+            <Text style={styles.label}>Возраст (лет) *</Text>
             <TextInput
               style={styles.input}
               placeholder="Возраст (лет)"
@@ -285,10 +327,15 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
             />
 
             <TouchableOpacity style={styles.saveButton} onPress={savePet}>
-              <Text style={styles.saveText}>Сохранить</Text>
+              <Text style={styles.saveText}>
+                {editingPetId ? '💾 Сохранить изменения' : '✅ Сохранить питомца'}
+              </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => setShowForm(false)}>
+            <TouchableOpacity onPress={() => {
+              setShowForm(false);
+              resetForm();
+            }}>
               <Text style={styles.cancel}>Отмена</Text>
             </TouchableOpacity>
           </View>
@@ -309,7 +356,15 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
 
           return (
             <View key={pet.id} style={styles.card}>
-              <Text style={styles.petName}>{pet.name}</Text>
+              <View style={styles.cardHeader}>
+                <Text style={styles.petName}>{pet.name}</Text>
+                <TouchableOpacity 
+                  style={styles.editButton}
+                  onPress={() => startEditPet(pet)}
+                >
+                  <Text style={styles.editButtonText}>✏️</Text>
+                </TouchableOpacity>
+              </View>
 
               <Text style={styles.petInfo}>
                 {pet.species === 'dog' ? '🐶 Собака' : '🐱 Кошка'}
@@ -318,32 +373,34 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
               {/* Отображение породы */}
               {pet.breed_name && (
                 <Text style={styles.petInfo}>
-                  Порода: {pet.breed_name}
+                  🐕 Порода: {pet.breed_name}
                   {pet.breed_name_ru ? ` (${pet.breed_name_ru})` : ''}
                 </Text>
               )}
 
-              {pet.weight && <Text style={styles.petInfo}>Вес: {pet.weight} кг</Text>}
-              {pet.height && <Text style={styles.petInfo}>Рост: {pet.height} см</Text>}
-              {pet.age && <Text style={styles.petInfo}>Возраст: {pet.age} лет</Text>}
+              {pet.weight && <Text style={styles.petInfo}>⚖️ Вес: {pet.weight} кг</Text>}
+              {pet.height && <Text style={styles.petInfo}>📏 Рост: {pet.height} см</Text>}
+              {pet.age && <Text style={styles.petInfo}>🎂 Возраст: {pet.age} лет</Text>}
+              {pet.sex && (
+                <Text style={styles.petInfo}>
+                  {pet.sex === 'male' ? '♂ Пол: Мужской' : '♀ Пол: Женский'}
+                </Text>
+              )}
+              {pet.neutered && <Text style={styles.petInfo}>✅ Стерилизован(а)</Text>}
 
               {health && (
                 <View style={styles.chartsSection}>
-                  <Text style={styles.chartsTitle}>Сравнение с нормой</Text>
+                  <Text style={styles.chartsTitle}>📊 Сравнение с нормой</Text>
 
                   <View style={styles.metricCard}>
                     <Text style={styles.metricName}>Вес</Text>
                     <Text>
                       {pet.weight} кг / {health.weightRange?.min}-{health.weightRange?.max} кг
                     </Text>
-
                     <Text
                       style={[
                         styles.statusText,
-                        {
-                          color:
-                            health.weightStatus === 'норма' ? '#4CAF50' : '#FF6347',
-                        },
+                        { color: health.weightStatus === 'норма' ? '#4CAF50' : '#FF6347' }
                       ]}
                     >
                       {health.weightStatus === 'норма' ? '✓ В норме' : '⚠ Отклонение'}
@@ -355,14 +412,10 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
                     <Text>
                       {pet.height} см / {health.heightRange?.min}-{health.heightRange?.max} см
                     </Text>
-
                     <Text
                       style={[
                         styles.statusText,
-                        {
-                          color:
-                            health.heightStatus === 'норма' ? '#4CAF50' : '#FF6347',
-                        },
+                        { color: health.heightStatus === 'норма' ? '#4CAF50' : '#FF6347' }
                       ]}
                     >
                       {health.heightStatus === 'норма' ? '✓ В норме' : '⚠ Отклонение'}
@@ -375,35 +428,42 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
         })}
       </ScrollView>
 
-      {/* Bottom nav - как в App.tsx */}
+      {/* Модальное окно для распознавания породы */}
+      <Modal
+        visible={showRecognizer}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowRecognizer(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <BreedRecognizer
+            onBreedDetected={handleBreedDetected}
+            onClose={() => setShowRecognizer(false)}
+            preselectedSpecies={species || undefined}  // ← Добавленная строка
+          />
+        </View>
+      </Modal>
+
+      {/* Bottom nav */}
       <View style={styles.bottomNav}>
-        {/* 📅 Календарь */}
         <TouchableOpacity 
           style={styles.navButton} 
           onPress={() => onNavigate?.('medications')}
         >
-          <Text style={[
-            styles.navText,
-            isActive('medications') && styles.activeNavText
-          ]}>
+          <Text style={[styles.navText, isActive('medications') && styles.activeNavText]}>
             📅
           </Text>
         </TouchableOpacity>
 
-        {/* 🏠 Главная */}
         <TouchableOpacity 
           style={styles.navButton} 
           onPress={() => onNavigate?.('main')}
         >
-          <Text style={[
-            styles.navText,
-            isActive('main') && styles.activeNavText
-          ]}>
+          <Text style={[styles.navText, isActive('main') && styles.activeNavText]}>
             🏠
           </Text>
         </TouchableOpacity>
 
-        {/* 🐶 Питомцы (активная) */}
         <TouchableOpacity 
           style={styles.navButton} 
           onPress={() => onNavigate?.('addPet')}
@@ -413,7 +473,6 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
           </Text>
         </TouchableOpacity>
 
-        {/* Профиль с аватаркой */}
         {user && (
           <TouchableOpacity 
             style={[
@@ -444,29 +503,24 @@ const styles = StyleSheet.create({
     flex: 1, 
     backgroundColor: '#F6F9F7' 
   },
-
   content: { 
     padding: 16, 
     paddingBottom: 100 
   },
-
   backButton: {
     marginBottom: 16,
   },
-
   backButtonText: {
     fontSize: 16,
     color: '#7BC9A8',
     fontWeight: '600',
   },
-
   title: { 
     fontSize: 22, 
     fontWeight: '700', 
     marginBottom: 16,
     color: '#2F4F4F',
   },
-
   addPetButton: {
     backgroundColor: '#7BC9A8',
     paddingVertical: 16,
@@ -474,136 +528,166 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-
   addPetButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
-
   formCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
     padding: 16,
     marginBottom: 20,
   },
-
+  formTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#2F4F4F',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 6,
+    marginTop: 10,
+  },
   input: {
     borderWidth: 1,
     borderColor: '#DDD',
     borderRadius: 10,
-    padding: 10,
+    padding: 12,
     marginBottom: 10,
+    fontSize: 16,
   },
-
   row: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     marginBottom: 10,
   },
-
   option: {
     padding: 10,
+    paddingHorizontal: 20,
     borderWidth: 1,
     borderColor: '#CCC',
     borderRadius: 10,
+    fontSize: 16,
   },
-
   active: {
     backgroundColor: '#7BC9A8',
     color: '#FFF',
+    borderColor: '#7BC9A8',
   },
-
+  breedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  recognizeButton: {
+    backgroundColor: '#7BC9A8',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  recognizeButtonText: {
+    fontSize: 20,
+  },
   clearButton: {
-    marginLeft: 8,
     backgroundColor: '#FF6347',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     borderRadius: 8,
   },
-
   clearButtonText: {
     color: '#fff',
     fontWeight: '700',
   },
-
   breedItem: {
-    padding: 10,
+    padding: 12,
     borderBottomWidth: 1,
     borderColor: '#EEE',
   },
-
   saveButton: {
     backgroundColor: '#7BC9A8',
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderRadius: 18,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 16,
   },
-
   saveText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
-
   cancel: {
     textAlign: 'center',
-    marginTop: 10,
-    color: 'gray',
+    marginTop: 12,
+    color: '#999',
+    fontSize: 14,
   },
-
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
     padding: 16,
     marginBottom: 12,
   },
-
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   petName: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
     color: '#2F4F4F',
   },
-
+  editButton: {
+    padding: 8,
+  },
+  editButtonText: {
+    fontSize: 18,
+  },
   petInfo: {
     fontSize: 14,
     color: '#7A8F88',
     marginTop: 4,
   },
-
   chartsSection: {
     marginTop: 16,
   },
-
   chartsTitle: {
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 12,
     color: '#2F4F4F',
   },
-
   metricCard: {
     backgroundColor: '#F8FCFA',
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
   },
-
   metricName: {
     fontSize: 15,
     fontWeight: '600',
     marginBottom: 8,
     color: '#2F4F4F',
   },
-
   statusText: {
     fontSize: 14,
     fontWeight: '500',
     marginTop: 6,
   },
-
-  // Bottom navigation styles (как в App.tsx)
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+  },
   bottomNav: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -622,23 +706,19 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 25,
   },
-
   navButton: { 
     flex: 1, 
     alignItems: 'center',
     paddingVertical: 10,
   },
-
   navText: { 
     fontSize: 24, 
     color: '#7A8F88',
   },
-  
   activeNavText: {
     color: '#7BC9A8',
     fontWeight: '600',
   },
-
   profileButton: {
     width: 50,
     height: 50,
@@ -649,19 +729,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-
   profileAvatar: {
     width: 46,
     height: 46,
     borderRadius: 23,
   },
-
   profileText: { 
     fontSize: 18, 
     fontWeight: '700', 
     color: '#7BC9A8' 
   },
-  
   activeProfileButton: {
     borderColor: '#2F4F4F',
     borderWidth: 3,

@@ -18,8 +18,8 @@ interface AuthContextProps {
   updateUser: (data: Partial<User>) => Promise<void>;
 }
 
-const BASE_URL = 'http://192.168.0.92:3001/api/auth';
-const USER_URL = 'http://192.168.0.92:3001/api/user';
+const BASE_URL = 'http://192.168.0.77:3001/api/auth';
+const USER_URL = 'http://192.168.0.77:3001/api/user';
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
 

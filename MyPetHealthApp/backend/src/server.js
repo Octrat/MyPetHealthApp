@@ -1,4 +1,3 @@
-// /Users/mariabelobruh/Desktop/Учеба/Итог/MyPetHealthApp/backend/src/server.js
 import path from 'path';
 import express from 'express';
 import cors from 'cors';
@@ -8,9 +7,13 @@ import authRoutes from './routes/auth.js';
 import userRoutes from './routes/user.js';
 import petsRoutes from './routes/pets.js';
 import avatarRoutes from './routes/avatar.js';
+import visionRoutes from './routes/vision.js';
 
 import { authenticateToken } from './middleware/auth.js';
 import { testConnection } from './config/database.js';
+
+// ✨ ДОБАВИТЬ ИМПОРТ AI АССИСТЕНТА
+import { askGemini } from './services/geminiService.js';
 
 dotenv.config();
 
@@ -23,17 +26,22 @@ app.use(cors({
   methods: ['GET','POST','PUT','DELETE','OPTIONS'],
 }));
 
-app.use(express.json());
+// ✅ УВЕЛИЧИВАЕМ ЛИМИТ ДЛЯ БОЛЬШИХ ФАЙЛОВ (аватары, фото)
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
 app.use((req, res, next) => {
   console.log('➡️', req.method, req.url);
   next();
 });
 app.use('/uploads', express.static(path.join(process.cwd(), 'src/uploads')));
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/user', authenticateToken, userRoutes);
 app.use('/api/pets', authenticateToken, petsRoutes);
-app.use('/api/user/avatar', authenticateToken, avatarRoutes); // ✅ загрузка аватара
+app.use('/api/user/avatar', authenticateToken, avatarRoutes);
+app.use('/api/vision', authenticateToken, visionRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
@@ -44,6 +52,7 @@ app.get('/', (req, res) => {
       auth: '/api/auth',
       user: '/api/user',
       pets: '/api/pets',
+      vision: '/api/vision',
     }
   });
 });
@@ -58,10 +67,29 @@ app.get('/health', async (req, res) => {
   });
 });
 
+// ✨ НОВЫЙ ЭНДПОИНТ ДЛЯ AI АССИСТЕНТА
+app.post('/api/assistant/ask', authenticateToken, async (req, res) => {
+  const { question, history } = req.body;
+  
+  if (!question || question.trim().length === 0) {
+    return res.status(400).json({ message: 'Напишите ваш вопрос' });
+  }
+  
+  try {
+    const answer = await askGemini(question, history || []);
+    res.json({ answer });
+  } catch (error) {
+    console.error('Ошибка в /api/assistant/ask:', error);
+    res.status(500).json({ message: 'Ошибка получения ответа' });
+  }
+});
+
 // Запуск сервера
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV}`);
   console.log(`🔗 Health check: http://0.0.0.0:${PORT}/health`);
   console.log(`🔗 Main page: http://127.0.0.1:${PORT}`);
+  console.log(`🤖 AI Assistant: http://127.0.0.1:${PORT}/api/assistant/ask`);
+  console.log(`👁️ Vision API: http://127.0.0.1:${PORT}/api/vision/test`);
 });

@@ -19,13 +19,14 @@ import LoginScreen from './components/LoginScreen';
 import RegisterScreen from './components/RegisterScreen';
 import ProfileScreen from './components/ProfileScreen';
 import PetMedicationsScreen from './components/PetMedicationsScreen';
+import PetAssistant from './components/PetAssistant';
 
 import { AuthProvider, useAuth } from './src/hooks/AuthContext';
 import { petsAPI } from './src/services/api';
 import { Pet } from './src/types';
 import { AppScreen } from './src/types/navigation';
 
-const BASE_URL = 'http://192.168.0.92:3001';
+const BASE_URL = 'http://192.168.0.77:3001';
 
 function MainApp() {
   const isActive = (screen: AppScreen) => {
@@ -106,7 +107,7 @@ function MainApp() {
       />
     );
 
-  // Main screen - упрощенная версия без списка питомцев
+  // Main screen - с AI помощником
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F6F9F7" />
@@ -152,6 +153,10 @@ function MainApp() {
             </Text>
           </View>
         )}
+
+        {/* 🤖 AI ПОМОЩНИК */}
+        <PetAssistant />
+
       </ScrollView>
 
       <View style={styles.bottomNav}>
@@ -263,7 +268,7 @@ const styles = StyleSheet.create({
 
   addPetButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
 
-  // Новые стили для статистики
+  // Стили для статистики
   statsCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 22,
