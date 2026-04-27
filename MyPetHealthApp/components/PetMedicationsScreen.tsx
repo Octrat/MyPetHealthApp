@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Ima
 import { Pet, Medication } from '../src/types';
 import { useAuth } from '../src/hooks/AuthContext';
 import { AppScreen } from '../src/types/navigation';
+import BottomNav from './BottomNav';
 import rawMedicationsDataJson from '../src/data/medications.json';
 
 const BASE_URL = 'http://192.168.0.29:3001';
@@ -35,10 +36,6 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({ pets, onBac
   const [selectedPet, setSelectedPet] = useState<Pet | null>(pets[0] || null);
   const [medications, setMedications] = useState<Medication[]>([]);
 
-  const isActive = (screen: AppScreen) => {
-    return screen === 'medications';
-  };
-
   useEffect(() => {
     if (selectedPet) {
       setMedications(getMedicationsForPet(selectedPet));
@@ -50,12 +47,6 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({ pets, onBac
     const nextDate = new Date(now.getTime() + intervalDays * 24 * 60 * 60 * 1000);
     return nextDate.toLocaleDateString('ru-RU');
   };
-
-  const firstLetter = user?.name 
-    ? user.name.charAt(0).toUpperCase() 
-    : user?.email.charAt(0).toUpperCase() || '?';
-
-  const avatarUri = user?.avatar_path ? `${BASE_URL}${user.avatar_path}` : '';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -151,59 +142,11 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({ pets, onBac
         </>
       )}
 
-      {/* Bottom Navigation с иконкой собачки */}
-      <View style={styles.bottomNav}>
-        {/* 📅 Календарь (активный) */}
-        <TouchableOpacity 
-          style={styles.navButton} 
-          onPress={() => onNavigate?.('medications')}
-        >
-          <Text style={[
-            styles.navText,
-            isActive('medications') && styles.activeNavText
-          ]}>
-            📅
-          </Text>
-        </TouchableOpacity>
-
-        {/* 🏠 Главная */}
-        <TouchableOpacity 
-          style={styles.navButton} 
-          onPress={() => onNavigate?.('main')}
-        >
-          <Text style={[
-            styles.navText,
-            isActive('main') && styles.activeNavText
-          ]}>
-            🏠
-          </Text>
-        </TouchableOpacity>
-
-        {/* 🐶 Питомцы */}
-        <TouchableOpacity 
-          style={styles.navButton} 
-          onPress={() => onNavigate?.('addPet')}
-        >
-          <Text style={[
-            styles.navText,
-            isActive('addPet') && styles.activeNavText
-          ]}>
-            🐶
-          </Text>
-        </TouchableOpacity>
-
-        {/* 👤 Профиль */}
-        <TouchableOpacity 
-          style={styles.profileButton}
-          onPress={() => onNavigate?.('profile')}
-        >
-          {avatarUri ? (
-            <Image source={{ uri: avatarUri }} style={styles.profileAvatar} />
-          ) : (
-            <Text style={styles.profileText}>{firstLetter}</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+      {/* Bottom Navigation - используем компонент */}
+      <BottomNav 
+        currentScreen="medications" 
+        onNavigate={(screen) => onNavigate?.(screen)} 
+      />
     </SafeAreaView>
   );
 };
@@ -308,7 +251,7 @@ const styles = StyleSheet.create({
 
   medicationsContainer: { 
     paddingHorizontal: 16, 
-    paddingBottom: 120,
+    paddingBottom: 100, // Уменьшил отступ, так как BottomNav теперь внутри
   },
 
   sectionTitle: {
@@ -409,58 +352,5 @@ const styles = StyleSheet.create({
     fontSize: 14, 
     fontWeight: '600', 
     color: '#7BC9A8',
-  },
-
-  // Bottom Navigation Styles
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    height: 70,
-    width: '90%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: -2 },
-    alignSelf: 'center',
-    paddingHorizontal: 20,
-    position: 'absolute',
-    bottom: 25,
-  },
-  navButton: { 
-    flex: 1, 
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  navText: { 
-    fontSize: 24, 
-    color: '#7A8F88',
-  },
-  activeNavText: {
-    color: '#7BC9A8',
-    fontWeight: '600',
-  },
-  profileButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#7BC9A8',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  profileAvatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-  },
-  profileText: { 
-    fontSize: 18, 
-    fontWeight: '700', 
-    color: '#7BC9A8' 
   },
 });

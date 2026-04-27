@@ -1,6 +1,7 @@
 // src/hooks/AuthContext.tsx
 import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Image } from 'react-native';
 import { User, LoginCredentials, RegisterData } from '../types';
 
 interface AuthResult {
@@ -16,6 +17,9 @@ interface AuthContextProps {
   register: (data: RegisterData) => Promise<AuthResult>;
   logout: () => Promise<void>;
   updateUser: (data: Partial<User>) => Promise<void>;
+  refreshUser: () => Promise<void>;
+  getCachedAvatarUri: () => Promise<string | null>;
+  avatarUri: string | null;  // Добавлен в интерфейс
 }
 
 const BASE_URL = 'http://192.168.0.29:3001/api/auth';
@@ -23,16 +27,49 @@ const USER_URL = 'http://192.168.0.29:3001/api/user';
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
 
+// Функция для предзагрузки аватара
+const prefetchAvatar = async (avatarPath: string | undefined) => {
+  if (!avatarPath) return false;
+  try {
+    const avatarUrl = `http://192.168.0.29:3001${avatarPath}`;
+    await Image.prefetch(avatarUrl);
+    return true;
+  } catch (error) {
+    console.log('Avatar prefetch error:', error);
+    return false;
+  }
+};
+
 const useAuthLogic = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);  // Переименовано из cachedAvatarUri
+
+  // Загрузка аватара
+  const loadAvatar = async (avatarPath: string | undefined) => {
+    if (!avatarPath) {
+      setAvatarUri(null);
+      return null;
+    }
+    const avatarUrl = `http://192.168.0.29:3001${avatarPath}`;
+    setAvatarUri(avatarUrl);
+    return avatarUrl;
+  };
 
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const token = await AsyncStorage.getItem('userToken');
         const userData = await AsyncStorage.getItem('userData');
-        if (token && userData) setUser(JSON.parse(userData));
+        if (token && userData) {
+          const parsedUser = JSON.parse(userData);
+          // Предзагружаем аватар при старте
+          if (parsedUser.avatar_path) {
+            await prefetchAvatar(parsedUser.avatar_path);
+            await loadAvatar(parsedUser.avatar_path);
+          }
+          setUser(parsedUser);
+        }
       } catch (e) {
         console.log('Auth check error:', e);
       } finally {
@@ -55,6 +92,12 @@ const useAuthLogic = () => {
 
       const user: User = result.user;
       const token: string = result.token;
+
+      // Предзагружаем аватар
+      if (user.avatar_path) {
+        await prefetchAvatar(user.avatar_path);
+        await loadAvatar(user.avatar_path);
+      }
 
       await AsyncStorage.setItem('userToken', token);
       await AsyncStorage.setItem('userData', JSON.stringify({ ...user, avatar_path: user.avatar_path || '' }));
@@ -96,6 +139,7 @@ const useAuthLogic = () => {
   const logout = async () => {
     await AsyncStorage.removeItem('userToken');
     await AsyncStorage.removeItem('userData');
+    setAvatarUri(null);
     setUser(null);
   };
 
@@ -115,8 +159,15 @@ const useAuthLogic = () => {
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || 'Ошибка обновления');
 
-      // Сохраняем новые данные локально, мержим с текущим user
+      // Сохраняем новые данные локально
       const updatedUser = { ...user, ...data, ...result.user };
+      
+      // Если обновился аватар, предзагружаем его
+      if (updatedUser.avatar_path && updatedUser.avatar_path !== user.avatar_path) {
+        await prefetchAvatar(updatedUser.avatar_path);
+        await loadAvatar(updatedUser.avatar_path);
+      }
+      
       setUser(updatedUser);
       await AsyncStorage.setItem('userData', JSON.stringify(updatedUser));
     } catch (error) {
@@ -125,7 +176,50 @@ const useAuthLogic = () => {
     }
   };
 
-  return { user, isLoading, login, register, logout, updateUser };
+  const refreshUser = async () => {
+    if (!user) return;
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const response = await fetch(`${USER_URL}/me`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || 'Ошибка получения данных');
+
+      const updatedUser = { ...user, ...result.user };
+      
+      if (updatedUser.avatar_path) {
+        await prefetchAvatar(updatedUser.avatar_path);
+        await loadAvatar(updatedUser.avatar_path);
+      }
+      
+      setUser(updatedUser);
+      await AsyncStorage.setItem('userData', JSON.stringify(updatedUser));
+    } catch (error) {
+      console.error('Refresh user error:', error);
+    }
+  };
+
+  const getCachedAvatarUri = async () => {
+    return avatarUri;
+  };
+
+  return { 
+    user, 
+    isLoading, 
+    login, 
+    register, 
+    logout, 
+    updateUser, 
+    refreshUser,
+    getCachedAvatarUri,
+    avatarUri  // Теперь возвращаем avatarUri
+  };
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {

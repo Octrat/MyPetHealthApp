@@ -20,6 +20,7 @@ import RegisterScreen from './components/RegisterScreen';
 import ProfileScreen from './components/ProfileScreen';
 import PetMedicationsScreen from './components/PetMedicationsScreen';
 import PetAssistant from './components/PetAssistant';
+import BottomNav from './components/BottomNav'; // Добавляем импорт BottomNav
 
 import { AuthProvider, useAuth } from './src/hooks/AuthContext';
 import { petsAPI } from './src/services/api';
@@ -29,10 +30,6 @@ import { AppScreen } from './src/types/navigation';
 const BASE_URL = 'http://192.168.0.29:3001';
 
 function MainApp() {
-  const isActive = (screen: AppScreen) => {
-    return appState === screen;
-  };
-  
   const [appState, setAppState] = useState<AppScreen>('splash');
   const { user, logout, isLoading } = useAuth();
   const [pets, setPets] = useState<Pet[]>([]);
@@ -159,64 +156,11 @@ function MainApp() {
 
       </ScrollView>
 
-      <View style={styles.bottomNav}>
-        {/* 📅 Календарь */}
-        <TouchableOpacity 
-          style={styles.navButton} 
-          onPress={() => setAppState('medications')}
-        >
-          <Text style={[
-            styles.navText,
-            isActive('medications') && styles.activeNavText
-          ]}>
-            📅
-          </Text>
-        </TouchableOpacity>
-
-        {/* 🏠 Главная */}
-        <TouchableOpacity 
-          style={styles.navButton} 
-          onPress={() => setAppState('main')}
-        >
-          <Text style={[
-            styles.navText,
-            isActive('main') && styles.activeNavText
-          ]}>
-            🏠
-          </Text>
-        </TouchableOpacity>
-
-        {/* 🐶 Питомцы */}
-        <TouchableOpacity 
-          style={styles.navButton} 
-          onPress={() => setAppState('addPet')}
-        >
-          <Text style={styles.navText}>
-            🐶
-          </Text>
-        </TouchableOpacity>
-
-        {user && (
-          <TouchableOpacity 
-            style={[
-              styles.profileButton,
-              isActive('profile') && styles.activeProfileButton
-            ]} 
-            onPress={() => setAppState('profile')}
-          >
-            {user.avatar_path ? (
-              <Image
-                source={{ uri: `${BASE_URL}${user.avatar_path}?t=${Date.now()}` }}
-                style={styles.profileAvatar}
-              />
-            ) : (
-              <Text style={styles.profileText}>
-                {((user.name ?? user.email ?? ' ')[0] || '').toUpperCase()}
-              </Text>
-            )}
-          </TouchableOpacity>
-        )}
-      </View>
+      {/* Используем компонент BottomNav вместо дублирующегося кода */}
+      <BottomNav 
+        currentScreen="main" 
+        onNavigate={(screen: AppScreen) => setAppState(screen)} 
+      />
     </SafeAreaView>
   );
 }
@@ -245,7 +189,7 @@ const styles = StyleSheet.create({
 
   title: { fontSize: 22, fontWeight: '700', color: '#2F4F4F' },
 
-  content: { padding: 16, paddingBottom: 120 },
+  content: { padding: 16, paddingBottom: 100 }, // Уменьшил отступ, так как BottomNav теперь внутри
 
   welcomeCard: {
     backgroundColor: '#FFFFFF',
@@ -268,7 +212,6 @@ const styles = StyleSheet.create({
 
   addPetButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
 
-  // Стили для статистики
   statsCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 22,
@@ -298,7 +241,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // Стили для пустого состояния
   emptyStateCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 22,
@@ -321,68 +263,5 @@ const styles = StyleSheet.create({
     color: '#7A8F88',
     textAlign: 'center',
     lineHeight: 20,
-  },
-
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    height: 70,
-    width: '90%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: -2 },
-    alignSelf: 'center',
-    paddingHorizontal: 20,
-    position: 'absolute',
-    bottom: 25,
-  },
-
-  navButton: { 
-    flex: 1, 
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-
-  navText: { 
-    fontSize: 24, 
-    color: '#7A8F88',
-  },
-  
-  activeNavText: {
-    color: '#7BC9A8',
-    fontWeight: '600',
-  },
-
-  profileButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#7BC9A8',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  profileAvatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-  },
-
-  profileText: { 
-    fontSize: 18, 
-    fontWeight: '700', 
-    color: '#7BC9A8' 
-  },
-  
-  activeProfileButton: {
-    borderColor: '#2F4F4F',
-    borderWidth: 3,
   },
 });

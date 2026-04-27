@@ -20,6 +20,7 @@ import { petsAPI } from '../src/services/api';
 import { analyzePetHealthByCategory, SizeCategory } from '../src/utils/healthCheck';
 import { AppScreen } from '../src/types/navigation';
 import BreedRecognizer from './BreedRecognizer';
+import BottomNav from './BottomNav';
 
 const BASE_URL = 'http://192.168.0.29:3001';
 
@@ -57,10 +58,6 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
   const [neutered, setNeutered] = useState(false);
   const [description, setDescription] = useState('');
   const [petPhoto, setPetPhoto] = useState<string | null>(null);
-
-  const isActive = (screen: AppScreen) => {
-    return screen === 'addPet';
-  };
 
   // Загрузка списка питомцев
   useEffect(() => {
@@ -205,8 +202,8 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
         await petsAPI.updatePet(
           editingPetId,
           name,
-          species || 'dog',  // значение по умолчанию
-          selectedBreed?.id || 1,  // значение по умолчанию
+          species || 'dog',
+          selectedBreed?.id || 1,
           weight ? Number(weight) : 0,
           height ? Number(height) : 0,
           age ? Number(age) : 0,
@@ -503,129 +500,128 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
         {loading && <ActivityIndicator style={{ marginTop: 20 }} />}
 
         {/* список питомцев */}
-        {/* список питомцев */}
-{pets.map((pet) => {
-  const health = analyzePetHealthByCategory({
-    sizeCategory: (pet.breed_size_category ?? 'medium') as SizeCategory,
-    weight: pet.weight ?? 0,
-    height: pet.height ?? 0,
-    age: pet.age ?? 0,
-    sex: pet.sex ?? 'male',
-    neutered: pet.neutered ?? false,
-  });
+        {pets.map((pet) => {
+          const health = analyzePetHealthByCategory({
+            sizeCategory: (pet.breed_size_category ?? 'medium') as SizeCategory,
+            weight: pet.weight ?? 0,
+            height: pet.height ?? 0,
+            age: pet.age ?? 0,
+            sex: pet.sex ?? 'male',
+            neutered: pet.neutered ?? false,
+          });
 
-  return (
-    <View key={pet.id} style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.petHeaderLeft}>
-          {pet.photo_url ? (
-            <Image 
-              source={{ uri: pet.photo_url.startsWith('data:') 
-                ? pet.photo_url 
-                : `data:image/jpeg;base64,${pet.photo_url}`
-              }}
-              style={styles.cardPhoto}
-            />
-          ) : (
-            <View style={styles.cardPhotoPlaceholder}>
-              <Text>{pet.species === 'dog' ? '🐶' : '🐱'}</Text>
+          return (
+            <View key={pet.id} style={styles.card}>
+              <View style={styles.cardHeader}>
+                <View style={styles.petHeaderLeft}>
+                  {pet.photo_url ? (
+                    <Image 
+                      source={{ uri: pet.photo_url.startsWith('data:') 
+                        ? pet.photo_url 
+                        : `data:image/jpeg;base64,${pet.photo_url}`
+                      }}
+                      style={styles.cardPhoto}
+                    />
+                  ) : (
+                    <View style={styles.cardPhotoPlaceholder}>
+                      <Text>{pet.species === 'dog' ? '🐶' : '🐱'}</Text>
+                    </View>
+                  )}
+                  <Text style={styles.petName}>{pet.name}</Text>
+                </View>
+                <View style={styles.cardActions}>
+                  <TouchableOpacity 
+                    style={styles.editButton}
+                    onPress={() => startEditPet(pet)}
+                  >
+                    <Text style={styles.editButtonText}>✏️</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.deleteButton}
+                    onPress={() => deletePet(pet.id, pet.name)}
+                  >
+                    <Text style={styles.deleteButtonText}>🗑️</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <Text style={styles.petInfo}>
+                {pet.species === 'dog' ? '🐶 Собака' : '🐱 Кошка'}
+              </Text>
+
+              {/* Отображение породы */}
+              {pet.breed_name && (
+                <Text style={styles.petInfo}>
+                  🐕 Порода: {pet.breed_name}
+                  {pet.breed_name_ru ? ` (${pet.breed_name_ru})` : ''}
+                </Text>
+              )}
+
+              {pet.weight !== undefined && pet.weight > 0 && (
+                <Text style={styles.petInfo}>⚖️ Вес: {pet.weight} кг</Text>
+              )}
+              {pet.height !== undefined && pet.height > 0 && (
+                <Text style={styles.petInfo}>📏 Рост: {pet.height} см</Text>
+              )}
+              {pet.age !== undefined && pet.age > 0 && (
+                <Text style={styles.petInfo}>🎂 Возраст: {pet.age} лет</Text>
+              )}
+              {pet.sex && (
+                <Text style={styles.petInfo}>
+                  {pet.sex === 'male' ? '♂ Пол: Мужской' : '♀ Пол: Женский'}
+                </Text>
+              )}
+              {pet.neutered && <Text style={styles.petInfo}>✅ Стерилизован(а)</Text>}
+              
+              {pet.description && (
+                <View style={styles.descriptionSection}>
+                  <Text style={styles.descriptionTitle}>📝 Описание:</Text>
+                  <Text style={styles.descriptionText}>{pet.description}</Text>
+                </View>
+              )}
+
+              {health && (pet.weight !== undefined || pet.height !== undefined) && (
+                <View style={styles.chartsSection}>
+                  <Text style={styles.chartsTitle}>📊 Сравнение с нормой</Text>
+
+                  {pet.weight !== undefined && pet.weight > 0 && (
+                    <View style={styles.metricCard}>
+                      <Text style={styles.metricName}>Вес</Text>
+                      <Text>
+                        {pet.weight} кг / {health.weightRange?.min}-{health.weightRange?.max} кг
+                      </Text>
+                      <Text
+                        style={[
+                          styles.statusText,
+                          { color: health.weightStatus === 'норма' ? '#4CAF50' : '#FF6347' }
+                        ]}
+                      >
+                        {health.weightStatus === 'норма' ? '✓ В норме' : '⚠ Отклонение'}
+                      </Text>
+                    </View>
+                  )}
+
+                  {pet.height !== undefined && pet.height > 0 && (
+                    <View style={styles.metricCard}>
+                      <Text style={styles.metricName}>Рост</Text>
+                      <Text>
+                        {pet.height} см / {health.heightRange?.min}-{health.heightRange?.max} см
+                      </Text>
+                      <Text
+                        style={[
+                          styles.statusText,
+                          { color: health.heightStatus === 'норма' ? '#4CAF50' : '#FF6347' }
+                        ]}
+                      >
+                        {health.heightStatus === 'норма' ? '✓ В норме' : '⚠ Отклонение'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
-          )}
-          <Text style={styles.petName}>{pet.name}</Text>
-        </View>
-        <View style={styles.cardActions}>
-          <TouchableOpacity 
-            style={styles.editButton}
-            onPress={() => startEditPet(pet)}
-          >
-            <Text style={styles.editButtonText}>✏️</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.deleteButton}
-            onPress={() => deletePet(pet.id, pet.name)}
-          >
-            <Text style={styles.deleteButtonText}>🗑️</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <Text style={styles.petInfo}>
-        {pet.species === 'dog' ? '🐶 Собака' : '🐱 Кошка'}
-      </Text>
-
-      {/* Отображение породы */}
-      {pet.breed_name && (
-        <Text style={styles.petInfo}>
-          🐕 Порода: {pet.breed_name}
-          {pet.breed_name_ru ? ` (${pet.breed_name_ru})` : ''}
-        </Text>
-      )}
-
-      {pet.weight !== undefined && pet.weight > 0 && (
-        <Text style={styles.petInfo}>⚖️ Вес: {pet.weight} кг</Text>
-      )}
-      {pet.height !== undefined && pet.height > 0 && (
-        <Text style={styles.petInfo}>📏 Рост: {pet.height} см</Text>
-      )}
-      {pet.age !== undefined && pet.age > 0 && (
-        <Text style={styles.petInfo}>🎂 Возраст: {pet.age} лет</Text>
-      )}
-      {pet.sex && (
-        <Text style={styles.petInfo}>
-          {pet.sex === 'male' ? '♂ Пол: Мужской' : '♀ Пол: Женский'}
-        </Text>
-      )}
-      {pet.neutered && <Text style={styles.petInfo}>✅ Стерилизован(а)</Text>}
-      
-      {pet.description && (
-        <View style={styles.descriptionSection}>
-          <Text style={styles.descriptionTitle}>📝 Описание:</Text>
-          <Text style={styles.descriptionText}>{pet.description}</Text>
-        </View>
-      )}
-
-      {health && (pet.weight !== undefined || pet.height !== undefined) && (
-        <View style={styles.chartsSection}>
-          <Text style={styles.chartsTitle}>📊 Сравнение с нормой</Text>
-
-          {pet.weight !== undefined && pet.weight > 0 && (
-            <View style={styles.metricCard}>
-              <Text style={styles.metricName}>Вес</Text>
-              <Text>
-                {pet.weight} кг / {health.weightRange?.min}-{health.weightRange?.max} кг
-              </Text>
-              <Text
-                style={[
-                  styles.statusText,
-                  { color: health.weightStatus === 'норма' ? '#4CAF50' : '#FF6347' }
-                ]}
-              >
-                {health.weightStatus === 'норма' ? '✓ В норме' : '⚠ Отклонение'}
-              </Text>
-            </View>
-          )}
-
-          {pet.height !== undefined && pet.height > 0 && (
-            <View style={styles.metricCard}>
-              <Text style={styles.metricName}>Рост</Text>
-              <Text>
-                {pet.height} см / {health.heightRange?.min}-{health.heightRange?.max} см
-              </Text>
-              <Text
-                style={[
-                  styles.statusText,
-                  { color: health.heightStatus === 'норма' ? '#4CAF50' : '#FF6347' }
-                ]}
-              >
-                {health.heightStatus === 'норма' ? '✓ В норме' : '⚠ Отклонение'}
-              </Text>
-            </View>
-          )}
-        </View>
-      )}
-    </View>
-  );
-})}
+          );
+        })}
       </ScrollView>
 
       {/* Модальное окно для распознавания породы */}
@@ -644,56 +640,11 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
         </View>
       </Modal>
 
-      {/* Bottom nav */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity 
-          style={styles.navButton} 
-          onPress={() => onNavigate?.('medications')}
-        >
-          <Text style={[styles.navText, isActive('medications') && styles.activeNavText]}>
-            📅
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.navButton} 
-          onPress={() => onNavigate?.('main')}
-        >
-          <Text style={[styles.navText, isActive('main') && styles.activeNavText]}>
-            🏠
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.navButton} 
-          onPress={() => onNavigate?.('addPet')}
-        >
-          <Text style={[styles.navText, styles.activeNavText]}>
-            🐶
-          </Text>
-        </TouchableOpacity>
-
-        {user && (
-          <TouchableOpacity 
-            style={[
-              styles.profileButton,
-              isActive('profile') && styles.activeProfileButton
-            ]} 
-            onPress={() => onNavigate?.('profile')}
-          >
-            {user.avatar_path ? (
-              <Image
-                source={{ uri: `${BASE_URL}${user.avatar_path}?t=${Date.now()}` }}
-                style={styles.profileAvatar}
-              />
-            ) : (
-              <Text style={styles.profileText}>
-                {((user.name ?? user.email ?? ' ')[0] || '').toUpperCase()}
-              </Text>
-            )}
-          </TouchableOpacity>
-        )}
-      </View>
+      {/* Bottom Navigation - используем компонент */}
+      <BottomNav 
+        currentScreen="addPet" 
+        onNavigate={(screen) => onNavigate?.(screen)} 
+      />
     </SafeAreaView>
   );
 }
@@ -966,60 +917,5 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    height: 70,
-    width: '90%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: -2 },
-    alignSelf: 'center',
-    paddingHorizontal: 20,
-    position: 'absolute',
-    bottom: 25,
-  },
-  navButton: { 
-    flex: 1, 
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  navText: { 
-    fontSize: 24, 
-    color: '#7A8F88',
-  },
-  activeNavText: {
-    color: '#7BC9A8',
-    fontWeight: '600',
-  },
-  profileButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#7BC9A8',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  profileAvatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-  },
-  profileText: { 
-    fontSize: 18, 
-    fontWeight: '700', 
-    color: '#7BC9A8' 
-  },
-  activeProfileButton: {
-    borderColor: '#2F4F4F',
-    borderWidth: 3,
   },
 });

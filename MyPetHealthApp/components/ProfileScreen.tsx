@@ -10,11 +10,13 @@ import {
   Image,
   Alert,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../src/hooks/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppScreen } from '../src/types/navigation';
+import BottomNavigation from './BottomNav';
 
 const BASE_URL = 'http://192.168.0.29:3001';
 
@@ -28,16 +30,40 @@ export default function ProfileScreen({ onLogout, onBack, onNavigate }: ProfileS
   const { user, updateUser } = useAuth();
   const [editableName, setEditableName] = useState(user?.name || '');
   const [isSaving, setIsSaving] = useState(false);
-  const [avatarUri, setAvatarUri] = useState(user?.avatar_path ? `${BASE_URL}${user.avatar_path}` : '');
+  const [localAvatarUri, setLocalAvatarUri] = useState<string | null>(null);
+  const [isLoadingAvatar, setIsLoadingAvatar] = useState(true);
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
 
-  const isActive = (screen: AppScreen) => {
-    return screen === 'profile';
-  };
+  // Загрузка аватара
+  useEffect(() => {
+    const loadAvatar = async () => {
+      if (!user?.avatar_path) {
+        setAvatarUri(null);
+        setIsLoadingAvatar(false);
+        return;
+      }
+
+      setIsLoadingAvatar(true);
+      const avatarUrl = `${BASE_URL}${user.avatar_path}`;
+      
+      try {
+        // Предзагружаем изображение
+        await Image.prefetch(avatarUrl);
+        setAvatarUri(avatarUrl);
+      } catch (error) {
+        console.log('Error loading avatar:', error);
+        setAvatarUri(avatarUrl);
+      } finally {
+        setIsLoadingAvatar(false);
+      }
+    };
+
+    loadAvatar();
+  }, [user?.avatar_path]);
 
   useEffect(() => {
     if (user?.name) setEditableName(user.name);
-    if (user?.avatar_path) setAvatarUri(`${BASE_URL}${user.avatar_path}`);
-  }, [user]);
+  }, [user?.name]);
 
   if (!user) return null;
 
@@ -69,14 +95,22 @@ export default function ProfileScreen({ onLogout, onBack, onNavigate }: ProfileS
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
-      quality: 0.8,
+      quality: 0.5,
+      allowsEditing: true,
+      aspect: [1, 1],
+      base64: true,
     });
 
     if (!result.canceled && result.assets.length > 0) {
       const image = result.assets[0];
       if (!image.uri) return;
 
-      setAvatarUri(image.uri);
+      // Сразу показываем локальное фото (мгновенно)
+      if (image.base64) {
+        setLocalAvatarUri(`data:image/jpeg;base64,${image.base64}`);
+      } else {
+        setLocalAvatarUri(image.uri);
+      }
 
       try {
         const formData = new FormData();
@@ -99,14 +133,23 @@ export default function ProfileScreen({ onLogout, onBack, onNavigate }: ProfileS
         const resJson = await response.json();
         if (!response.ok) throw new Error(resJson.message || 'Ошибка загрузки');
 
+        // Обновляем данные пользователя
         await updateUser({ avatar_path: resJson.avatar_url });
+        
+        // Очищаем локальное фото, теперь используем кэшированное
+        setLocalAvatarUri(null);
+        
         Alert.alert('Успешно', 'Аватар обновлен!');
       } catch (error) {
         console.error('Avatar upload error:', error);
         Alert.alert('Ошибка', 'Не удалось загрузить аватар');
+        setLocalAvatarUri(null);
       }
     }
   };
+
+  // Текущее отображаемое фото
+  const displayAvatarUri = localAvatarUri || avatarUri;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -123,8 +166,16 @@ export default function ProfileScreen({ onLogout, onBack, onNavigate }: ProfileS
         </View>
 
         <View style={styles.avatarContainer}>
-          {avatarUri ? (
-            <Image source={{ uri: avatarUri }} style={styles.avatar} />
+          {isLoadingAvatar && !localAvatarUri ? (
+            <View style={styles.avatar}>
+              <ActivityIndicator size="large" color="#7BC9A8" />
+            </View>
+          ) : displayAvatarUri ? (
+            <Image 
+              source={{ uri: displayAvatarUri }}
+              style={styles.avatar}
+              onError={() => console.log('Image load error')}
+            />
           ) : (
             <View style={styles.avatarFallback}>
               <Text style={styles.avatarLetter}>{firstLetter}</Text>
@@ -163,62 +214,11 @@ export default function ProfileScreen({ onLogout, onBack, onNavigate }: ProfileS
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Bottom Navigation с иконкой собачки */}
-      <View style={styles.bottomNav}>
-        {/* 📅 Календарь */}
-        <TouchableOpacity 
-          style={styles.navButton} 
-          onPress={() => onNavigate?.('medications')}
-        >
-          <Text style={[
-            styles.navText,
-            isActive('medications') && styles.activeNavText
-          ]}>
-            📅
-          </Text>
-        </TouchableOpacity>
-
-        {/* 🏠 Главная */}
-        <TouchableOpacity 
-          style={styles.navButton} 
-          onPress={() => onNavigate?.('main')}
-        >
-          <Text style={[
-            styles.navText,
-            isActive('main') && styles.activeNavText
-          ]}>
-            🏠
-          </Text>
-        </TouchableOpacity>
-
-        {/* 🐶 Питомцы */}
-        <TouchableOpacity 
-          style={styles.navButton} 
-          onPress={() => onNavigate?.('addPet')}
-        >
-          <Text style={[
-            styles.navText,
-            isActive('addPet') && styles.activeNavText
-          ]}>
-            🐶
-          </Text>
-        </TouchableOpacity>
-
-        {/* 👤 Профиль (активный) */}
-        <TouchableOpacity 
-          style={[
-            styles.profileButton,
-            isActive('profile') && styles.activeProfileButton
-          ]} 
-          onPress={() => onNavigate?.('profile')}
-        >
-          {avatarUri ? (
-            <Image source={{ uri: avatarUri }} style={styles.profileAvatar} />
-          ) : (
-            <Text style={styles.profileText}>{firstLetter}</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+      {/* Bottom Navigation - используем компонент */}
+      <BottomNavigation 
+        currentScreen="profile" 
+        onNavigate={(screen) => onNavigate?.(screen)} 
+      />
     </SafeAreaView>
   );
 }
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: { 
     padding: 20,
-    paddingBottom: 120,
+    paddingBottom: 100,
   },
   header: { 
     flexDirection: 'row', 
@@ -261,6 +261,9 @@ const styles = StyleSheet.create({
     borderRadius: 60,
     borderWidth: 3,
     borderColor: '#7BC9A8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F0F0F0',
   },
   avatarFallback: { 
     width: 120, 
@@ -348,62 +351,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF', 
     fontWeight: '700', 
     fontSize: 16,
-  },
-
-  // Bottom Navigation Styles
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    height: 70,
-    width: '90%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: -2 },
-    alignSelf: 'center',
-    paddingHorizontal: 20,
-    position: 'absolute',
-    bottom: 25,
-  },
-  navButton: { 
-    flex: 1, 
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  navText: { 
-    fontSize: 24, 
-    color: '#7A8F88',
-  },
-  activeNavText: {
-    color: '#7BC9A8',
-    fontWeight: '600',
-  },
-  profileButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#7BC9A8',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  activeProfileButton: {
-    borderColor: '#2F4F4F',
-    borderWidth: 3,
-  },
-  profileAvatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-  },
-  profileText: { 
-    fontSize: 18, 
-    fontWeight: '700', 
-    color: '#7BC9A8' 
   },
 });
