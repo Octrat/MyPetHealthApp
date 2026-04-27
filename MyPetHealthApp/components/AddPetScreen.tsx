@@ -58,6 +58,9 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
   const [neutered, setNeutered] = useState(false);
   const [description, setDescription] = useState('');
   const [petPhoto, setPetPhoto] = useState<string | null>(null);
+  
+  // Состояние для распознавания породы
+  const [selectedSpeciesForScanner, setSelectedSpeciesForScanner] = useState<'dog' | 'cat'>('dog');
 
   // Загрузка списка питомцев
   useEffect(() => {
@@ -149,14 +152,23 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
     );
   };
 
-  // Обработчик распознанной породы
-  const handleBreedDetected = (detectedBreed: string) => {
+  // Обработчик распознанной породы (новый, с детальными данными)
+  const handleBreedDetected = (detectedBreed: string, breedData?: any) => {
     setBreedQuery(detectedBreed);
     setSelectedBreed(null);
     setShowRecognizer(false);
+    
+    let message = `Предполагаемая порода: ${detectedBreed}`;
+    if (breedData?.description) {
+      message += `\n\n📝 ${breedData.description}`;
+    }
+    if (breedData?.care_tips?.length) {
+      message += `\n\n💡 Совет: ${breedData.care_tips[0]}`;
+    }
+    
     Alert.alert(
       'Порода определена', 
-      `Предполагаемая порода: ${detectedBreed}\n\nЕсли порода не точная, вы можете отредактировать её вручную.`,
+      message,
       [{ text: 'OK' }]
     );
   };
@@ -389,58 +401,56 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
             {species && (
               <View>
                 <Text style={styles.label}>Порода *</Text>
-                <View style={styles.breedRow}>
+                <View style={styles.breedInputRow}>
                   <TextInput
-                    style={[styles.input, { flex: 1 }]}
-                    placeholder="Введите или выберите породу"
+                    style={[styles.input, styles.breedInput]}
+                    placeholder="Например, Лабрадор"
                     value={breedQuery}
                     onChangeText={(text) => {
                       setBreedQuery(text);
                       setSelectedBreed(null);
                     }}
                   />
-
-                  {/* Кнопка распознавания породы */}
-                  <TouchableOpacity
-                    style={styles.recognizeButton}
-                    onPress={() => setShowRecognizer(true)}
-                  >
-                    <Text style={styles.recognizeButtonText}>🔍</Text>
-                  </TouchableOpacity>
-
-                  {breedQuery.length > 0 && (
-                    <TouchableOpacity
-                      onPress={() => {
-                        setBreedQuery('');
-                        setSelectedBreed(null);
-                        setBreedOptions([]);
-                      }}
-                      style={styles.clearButton}
-                    >
-                      <Text style={styles.clearButtonText}>✕</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                {breedOptions.map((b) => (
-                  <TouchableOpacity
-                    key={b.id}
-                    style={styles.breedItem}
+                  
+                  {/* Кнопка распознавания породы через Gemini */}
+                  <TouchableOpacity 
+                    style={styles.scanBreedButton}
                     onPress={() => {
-                      setSelectedBreed(b);
-                      setBreedQuery(
-                        b.name_ru && b.name
-                          ? `${b.name_ru} (${b.name})`
-                          : b.name
-                      );
-                      setBreedOptions([]);
+                      if (!species) {
+                        Alert.alert('Сначала выберите вид', 'Выберите собака или кошка перед распознаванием породы');
+                        return;
+                      }
+                      setSelectedSpeciesForScanner(species);
+                      setShowRecognizer(true);
                     }}
                   >
-                    <Text>
-                      {b.name_ru ? `${b.name_ru} (${b.name})` : b.name}
-                    </Text>
+                    <Text style={styles.scanBreedButtonText}>📸</Text>
                   </TouchableOpacity>
-                ))}
+                </View>
+
+                {breedOptions.length > 0 && (
+                  <View style={styles.breedOptionsContainer}>
+                    {breedOptions.map((b) => (
+                      <TouchableOpacity
+                        key={b.id}
+                        style={styles.breedItem}
+                        onPress={() => {
+                          setSelectedBreed(b);
+                          setBreedQuery(
+                            b.name_ru && b.name
+                              ? `${b.name_ru} (${b.name})`
+                              : b.name
+                          );
+                          setBreedOptions([]);
+                        }}
+                      >
+                        <Text>
+                          {b.name_ru ? `${b.name_ru} (${b.name})` : b.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
             )}
 
@@ -624,23 +634,22 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
         })}
       </ScrollView>
 
-      {/* Модальное окно для распознавания породы */}
+      {/* Модальное окно для распознавания породы через Gemini */}
       <Modal
         visible={showRecognizer}
         animationType="slide"
-        transparent={true}
+        presentationStyle="pageSheet"
         onRequestClose={() => setShowRecognizer(false)}
       >
-        <View style={styles.modalOverlay}>
-          <BreedRecognizer
-            onBreedDetected={handleBreedDetected}
-            onClose={() => setShowRecognizer(false)}
-            preselectedSpecies={species || undefined}
-          />
-        </View>
+        <BreedRecognizer
+          visible={showRecognizer}
+          species={selectedSpeciesForScanner}
+          onClose={() => setShowRecognizer(false)}
+          onBreedSelected={handleBreedDetected}
+        />
       </Modal>
 
-      {/* Bottom Navigation - используем компонент */}
+      {/* Bottom Navigation */}
       <BottomNav 
         currentScreen="addPet" 
         onNavigate={(screen) => onNavigate?.(screen)} 
@@ -734,32 +743,32 @@ const styles = StyleSheet.create({
     color: '#FFF',
     borderColor: '#7BC9A8',
   },
-  breedRow: {
+  breedInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginBottom: 10,
   },
-  recognizeButton: {
+  breedInput: {
+    flex: 1,
+  },
+  scanBreedButton: {
     backgroundColor: '#7BC9A8',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 10,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  recognizeButtonText: {
-    fontSize: 20,
+  scanBreedButtonText: {
+    fontSize: 24,
   },
-  clearButton: {
-    backgroundColor: '#FF6347',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  clearButtonText: {
-    color: '#fff',
-    fontWeight: '700',
+  breedOptionsContainer: {
+    maxHeight: 200,
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: 10,
+    marginBottom: 10,
   },
   breedItem: {
     padding: 12,

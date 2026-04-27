@@ -2,360 +2,582 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
+  StyleSheet,
   TouchableOpacity,
   Image,
-  StyleSheet,
-  Alert,
   ActivityIndicator,
-  ScrollView
+  Alert,
+  Modal,
+  ScrollView,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-interface BreedRecognizerProps {
-  onBreedDetected?: (breed: string) => void;
-  onClose?: () => void;
-  preselectedSpecies?: 'dog' | 'cat'; // Добавляем пропс для вида
-}
+const BASE_URL = 'http://192.168.0.29:3001';
 
-interface VisionResult {
+interface RecognitionResult {
   success: boolean;
   breed: {
     name: string;
+    name_en?: string;
     confidence: number;
-  } | null;
-  confidence: number;
-  allLabels?: Array<{
-    label: string;
-    confidence: number;
-  }>;
+  };
+  description?: string;
+  traits?: {
+    size: string;
+    coat_type: string;
+    energy_level: string;
+    shedding: string;
+  };
+  care_tips?: string[];
+  health_notes?: string[];
+  alternative_breeds?: string[];
 }
 
-export default function BreedRecognizer({ onBreedDetected, onClose, preselectedSpecies }: BreedRecognizerProps) {
+interface Props {
+  visible: boolean;
+  species: 'dog' | 'cat';
+  onClose: () => void;
+  onBreedSelected: (breedName: string, breedData?: RecognitionResult) => void;
+}
+
+export default function BreedRecognizer({ visible, species, onClose, onBreedSelected }: Props) {
   const [image, setImage] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [result, setResult] = useState<VisionResult | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<RecognitionResult | null>(null);
+  const [step, setStep] = useState<'select' | 'result'>('select');
 
-  const API_URL = 'http://192.168.0.29:3001';
-
-  // Запрос разрешения на камеру
-  const requestCameraPermission = async (): Promise<boolean> => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Ошибка', 'Нужен доступ к камере для фото');
-      return false;
+  const pickImage = async (useCamera: boolean) => {
+    const permission = useCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    
+    if (!permission.granted) {
+      Alert.alert('Нужен доступ', `Разрешите доступ к ${useCamera ? 'камере' : 'галерее'} для определения породы`);
+      return;
     }
-    return true;
-  };
 
-  // Сделать фото
-  const takePhoto = async (): Promise<void> => {
-    const hasPermission = await requestCameraPermission();
-    if (!hasPermission) return;
+    const result = useCamera
+      ? await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          quality: 0.8,
+          base64: true,
+        })
+      : await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          quality: 0.8,
+          base64: true,
+        });
 
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.3,
-      base64: true,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      setImage(asset.uri || null);
-      if (asset.base64) {
-        recognizeBreed(asset.base64, preselectedSpecies);
-      }
+    if (!result.canceled && result.assets[0].base64) {
+      const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
+      setImage(result.assets[0].uri);
+      analyzeBreed(base64Image);
     }
   };
 
-  // Выбрать из галереи
-  const pickImage = async (): Promise<void> => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.3,
-      base64: true,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      setImage(asset.uri || null);
-      if (asset.base64) {
-        recognizeBreed(asset.base64, preselectedSpecies);
-      }
-    }
-  };
-
-  // Распознать породу через бэкенд
-  const recognizeBreed = async (base64Image: string, species?: string): Promise<void> => {
-    setIsAnalyzing(true);
+  const analyzeBreed = async (base64Image: string) => {
+    setLoading(true);
+    setStep('result');
+    
     try {
       const token = await AsyncStorage.getItem('userToken');
       
-      const response = await fetch(`${API_URL}/api/vision/recognize`, {
+      const response = await fetch(`${BASE_URL}/api/vision/gemini-recognize`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ 
-          image: `data:image/jpeg;base64,${base64Image}`,
-          species: species || undefined
-        })
+        body: JSON.stringify({
+          image: base64Image,
+          species: species,
+        }),
       });
 
-      const data: VisionResult = await response.json();
-      console.log('Vision response:', data);
+      const data = await response.json();
       
-      if (data.success && data.breed) {
+      if (data.success) {
         setResult(data);
-        if (onBreedDetected) {
-          onBreedDetected(data.breed.name);
-        }
       } else {
-        Alert.alert('Ошибка', data.success === false ? 'Не удалось распознать породу' : 'Ошибка при распознавании');
+        Alert.alert('Ошибка', data.error || 'Не удалось определить породу');
       }
     } catch (error) {
-      console.error('Recognition error:', error);
-      Alert.alert('Ошибка', 'Проблема с подключением к серверу');
+      console.error('Ошибка:', error);
+      Alert.alert('Ошибка', 'Проверьте соединение с сервером');
     } finally {
-      setIsAnalyzing(false);
+      setLoading(false);
     }
   };
 
-  const handleUseBreed = (): void => {
-    if (result?.breed && onBreedDetected) {
-      onBreedDetected(result.breed.name);
+  const handleSelectBreed = () => {
+    if (result && result.breed.name && result.breed.name !== 'Неизвестная порода') {
+      onBreedSelected(result.breed.name, result);
+      onClose();
+    } else {
+      Alert.alert('Порода не определена', 'Попробуйте другое фото или введите породу вручную');
     }
-    if (onClose) onClose();
   };
+
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence >= 0.7) return '#4CAF50';
+    if (confidence >= 0.4) return '#FFC107';
+    return '#FF5722';
+  };
+
+  const getConfidenceText = (confidence: number) => {
+    if (confidence >= 0.7) return 'Высокая уверенность';
+    if (confidence >= 0.4) return 'Средняя уверенность';
+    return 'Низкая уверенность';
+  };
+
+  const getSizeText = (size: string) => {
+    const sizes: Record<string, string> = {
+      'Small': 'Маленькая (до 10 кг)',
+      'Medium': 'Средняя (10-25 кг)',
+      'Large': 'Крупная (25-45 кг)',
+      'Giant': 'Огромная (45+ кг)',
+    };
+    return sizes[size] || size;
+  };
+
+  const getEnergyText = (energy: string) => {
+    const energies: Record<string, string> = {
+      'low': 'Низкая 🦥',
+      'medium': 'Средняя 🐕',
+      'high': 'Высокая ⚡',
+      'very_high': 'Очень высокая 🔥',
+    };
+    return energies[energy] || energy;
+  };
+
+  const getCoatText = (coat: string) => {
+    const coats: Record<string, string> = {
+      'short': 'Короткая',
+      'medium': 'Средняя',
+      'long': 'Длинная',
+      'curly': 'Кудрявая',
+      'wirehaired': 'Жесткая',
+      'hairless': 'Без шерсти',
+    };
+    return coats[coat] || coat;
+  };
+
+  const getSheddingText = (shedding: string) => {
+    const shed: Record<string, string> = {
+      'low': 'Мало линяет',
+      'medium': 'Линет умеренно',
+      'high': 'Обильно линяет',
+    };
+    return shed[shedding] || shedding;
+  };
+
+  if (!visible) return null;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>🔍 Распознавание породы</Text>
-        {onClose && (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>
+            🐕 Определение породы {species === 'dog' ? 'собаки' : 'кошки'}
+          </Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <Text style={styles.closeButtonText}>✕</Text>
           </TouchableOpacity>
+        </View>
+
+        {step === 'select' && !image && (
+          <View style={styles.selectContainer}>
+            <Text style={styles.selectText}>
+              Сфотографируйте питомца или выберите фото из галереи
+            </Text>
+            <Text style={styles.selectHint}>
+              Для лучшего результата фото должно быть:{'\n'}
+              • При хорошем освещении{'\n'}
+              • Питомец в полный рост или анфас{'\n'}
+              • Четкое изображение
+            </Text>
+            
+            <TouchableOpacity style={styles.cameraButton} onPress={() => pickImage(true)}>
+              <Text style={styles.cameraButtonIcon}>📷</Text>
+              <Text style={styles.cameraButtonText}>Сделать фото</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.galleryButton} onPress={() => pickImage(false)}>
+              <Text style={styles.galleryButtonIcon}>🖼️</Text>
+              <Text style={styles.galleryButtonText}>Выбрать из галереи</Text>
+            </TouchableOpacity>
+          </View>
         )}
-      </View>
 
-      {preselectedSpecies && (
-        <View style={styles.speciesIndicator}>
-          <Text style={styles.speciesText}>
-            Выбранный вид: {preselectedSpecies === 'dog' ? '🐶 Собака' : '🐱 Кошка'}
-          </Text>
-        </View>
-      )}
+        {step === 'result' && (
+          <ScrollView style={styles.resultContainer} showsVerticalScrollIndicator={false}>
+            {image && (
+              <Image source={{ uri: image }} style={styles.previewImage} />
+            )}
+            
+            {loading && (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#7BC9A8" />
+                <Text style={styles.loadingText}>
+                  🤖 Gemini анализирует фото...
+                </Text>
+                <Text style={styles.loadingSubtext}>
+                  Определяем породу и характеристики
+                </Text>
+              </View>
+            )}
 
-      <View style={styles.buttonRow}>
-        <TouchableOpacity style={[styles.button, styles.cameraButton]} onPress={takePhoto}>
-          <Text style={styles.buttonText}>📸 Сделать фото</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={[styles.button, styles.galleryButton]} onPress={pickImage}>
-          <Text style={styles.buttonText}>🖼️ Из галереи</Text>
-        </TouchableOpacity>
-      </View>
-
-      {(isLoading || isAnalyzing) && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4CAF50" />
-          <Text style={styles.loadingText}>
-            {isLoading ? 'Загрузка...' : 'Анализируем фото...'}
-          </Text>
-        </View>
-      )}
-
-      {image && !isAnalyzing && (
-        <ScrollView style={styles.resultScroll}>
-          <Image source={{ uri: image }} style={styles.previewImage} />
-          
-          {result?.breed ? (
-            <View style={styles.breedInfo}>
-              <Text style={styles.breedName}>
-                🐾 {result.breed.name}
-              </Text>
-              <Text style={styles.confidence}>
-                Уверенность: {(result.confidence * 100).toFixed(1)}%
-              </Text>
-              
-              {result.allLabels && result.allLabels.length > 0 && (
-                <View style={styles.labelsContainer}>
-                  <Text style={styles.labelsTitle}>Другие варианты:</Text>
-                  {result.allLabels.slice(0, 3).map((label, idx) => (
-                    <Text key={idx} style={styles.label}>
-                      • {label.label} ({(label.confidence * 100).toFixed(1)}%)
+            {!loading && result && (
+              <View>
+                {/* Результат */}
+                <View style={styles.breedCard}>
+                  <Text style={styles.breedName}>{result.breed.name}</Text>
+                  
+                  <View style={styles.confidenceContainer}>
+                    <View style={[styles.confidenceBar, { width: `${result.breed.confidence * 100}%`, backgroundColor: getConfidenceColor(result.breed.confidence) }]} />
+                    <Text style={styles.confidenceText}>
+                      {getConfidenceText(result.breed.confidence)} — {Math.round(result.breed.confidence * 100)}%
                     </Text>
-                  ))}
+                  </View>
+
+                  {result.description && (
+                    <Text style={styles.description}>{result.description}</Text>
+                  )}
                 </View>
-              )}
-              
-              <TouchableOpacity style={styles.useButton} onPress={handleUseBreed}>
-                <Text style={styles.useButtonText}>✓ Использовать эту породу</Text>
-              </TouchableOpacity>
-            </View>
-          ) : result && (
-            <View style={styles.errorInfo}>
-              <Text style={styles.errorText}>
-                Не удалось определить породу на этом фото.
-              </Text>
-              <Text style={styles.errorSubtext}>
-                Попробуйте сделать фото более четко или выберите другое изображение.
-              </Text>
-            </View>
-          )}
-        </ScrollView>
-      )}
-    </View>
+
+                {/* Характеристики */}
+                {result.traits && (
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>📊 Характеристики</Text>
+                    <View style={styles.traitsGrid}>
+                      <View style={styles.traitItem}>
+                        <Text style={styles.traitLabel}>Размер</Text>
+                        <Text style={styles.traitValue}>{getSizeText(result.traits.size)}</Text>
+                      </View>
+                      <View style={styles.traitItem}>
+                        <Text style={styles.traitLabel}>Шерсть</Text>
+                        <Text style={styles.traitValue}>{getCoatText(result.traits.coat_type)}</Text>
+                      </View>
+                      <View style={styles.traitItem}>
+                        <Text style={styles.traitLabel}>Активность</Text>
+                        <Text style={styles.traitValue}>{getEnergyText(result.traits.energy_level)}</Text>
+                      </View>
+                      <View style={styles.traitItem}>
+                        <Text style={styles.traitLabel}>Линька</Text>
+                        <Text style={styles.traitValue}>{getSheddingText(result.traits.shedding)}</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {/* Советы по уходу */}
+                {result.care_tips && result.care_tips.length > 0 && (
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>💡 Советы по уходу</Text>
+                    {result.care_tips.map((tip, index) => (
+                      <View key={index} style={styles.tipItem}>
+                        <Text style={styles.tipBullet}>•</Text>
+                        <Text style={styles.tipText}>{tip}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Заметки о здоровье */}
+                {result.health_notes && result.health_notes.length > 0 && (
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>🩺 Здоровье</Text>
+                    {result.health_notes.map((note, index) => (
+                      <View key={index} style={styles.tipItem}>
+                        <Text style={styles.tipBullet}>•</Text>
+                        <Text style={styles.tipText}>{note}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Альтернативные породы */}
+                {result.alternative_breeds && result.alternative_breeds.length > 0 && (
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>🔍 Похожие породы</Text>
+                    <View style={styles.alternativesContainer}>
+                      {result.alternative_breeds.map((breed, index) => (
+                        <View key={index} style={styles.alternativeBadge}>
+                          <Text style={styles.alternativeText}>{breed}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Кнопки действий */}
+                <View style={styles.actionsContainer}>
+                  <TouchableOpacity style={styles.selectButton} onPress={handleSelectBreed}>
+                    <Text style={styles.selectButtonText}>✓ Выбрать эту породу</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.retryButton} 
+                    onPress={() => {
+                      setImage(null);
+                      setResult(null);
+                      setStep('select');
+                    }}
+                  >
+                    <Text style={styles.retryButtonText}>📸 Определить другую породу</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </ScrollView>
+        )}
+      </SafeAreaView>
+    </Modal>
   );
 }
 
+// Стили (добавьте в конец файла)
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
-    margin: 16,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#F6F9F7',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    padding: 20,
+    backgroundColor: '#7BC9A8',
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   closeButton: {
-    padding: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   closeButtonText: {
-    fontSize: 20,
-    color: '#999',
-  },
-  speciesIndicator: {
-    backgroundColor: '#e8f5e9',
-    padding: 10,
-    borderRadius: 10,
-    marginBottom: 15,
-    alignItems: 'center',
-  },
-  speciesText: {
-    fontSize: 14,
-    color: '#4CAF50',
+    fontSize: 18,
+    color: '#FFFFFF',
     fontWeight: '600',
   },
-  buttonRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 20,
-  },
-  button: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
+  selectContainer: {
+    flex: 1,
+    padding: 24,
     alignItems: 'center',
-    flex: 0.45,
+    justifyContent: 'center',
+  },
+  selectText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2F4F4F',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  selectHint: {
+    fontSize: 14,
+    color: '#7A8F88',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
   },
   cameraButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#7BC9A8',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 16,
+    width: '100%',
+    marginBottom: 12,
   },
-  galleryButton: {
-    backgroundColor: '#2196F3',
+  cameraButtonIcon: {
+    fontSize: 24,
+    marginRight: 12,
   },
-  buttonText: {
-    color: 'white',
+  cameraButtonText: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#FFFFFF',
   },
-  loadingContainer: {
+  galleryButton: {
+    backgroundColor: '#E8F0EC',
+    flexDirection: 'row',
     alignItems: 'center',
-    padding: 30,
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 16,
+    width: '100%',
   },
-  loadingText: {
-    marginTop: 10,
-    color: '#666',
+  galleryButtonIcon: {
+    fontSize: 24,
+    marginRight: 12,
   },
-  resultScroll: {
-    maxHeight: 500,
+  galleryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2F4F4F',
+  },
+  resultContainer: {
+    flex: 1,
+    padding: 16,
   },
   previewImage: {
     width: '100%',
-    height: 200,
-    borderRadius: 12,
-    marginBottom: 15,
+    height: 250,
+    borderRadius: 20,
+    marginBottom: 20,
   },
-  breedInfo: {
-    backgroundColor: '#f5f5f5',
-    padding: 15,
-    borderRadius: 12,
+  loadingContainer: {
+    alignItems: 'center',
+    padding: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2F4F4F',
+    marginTop: 16,
+  },
+  loadingSubtext: {
+    fontSize: 13,
+    color: '#7A8F88',
+    marginTop: 8,
+  },
+  breedCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
   },
   breedName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 5,
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#2F4F4F',
+    marginBottom: 12,
   },
-  confidence: {
-    fontSize: 14,
-    color: '#4CAF50',
-    marginBottom: 15,
+  confidenceContainer: {
+    marginBottom: 16,
   },
-  labelsContainer: {
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#ddd',
-  },
-  labelsTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
+  confidenceBar: {
+    height: 8,
+    borderRadius: 4,
     marginBottom: 8,
   },
-  label: {
-    fontSize: 13,
-    color: '#888',
+  confidenceText: {
+    fontSize: 12,
+    color: '#7A8F88',
+  },
+  description: {
+    fontSize: 14,
+    color: '#5A6F68',
+    lineHeight: 20,
+  },
+  section: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2F4F4F',
+    marginBottom: 12,
+  },
+  traitsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  traitItem: {
+    backgroundColor: '#F8FCFA',
+    padding: 12,
+    borderRadius: 12,
+    width: '47%',
+  },
+  traitLabel: {
+    fontSize: 12,
+    color: '#7A8F88',
     marginBottom: 4,
   },
-  useButton: {
-    backgroundColor: '#4CAF50',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 15,
+  traitValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#2F4F4F',
   },
-  useButtonText: {
-    color: 'white',
+  tipItem: {
+    flexDirection: 'row',
+    marginBottom: 10,
+  },
+  tipBullet: {
+    fontSize: 14,
+    color: '#7BC9A8',
+    marginRight: 8,
+  },
+  tipText: {
+    fontSize: 14,
+    color: '#5A6F68',
+    flex: 1,
+    lineHeight: 20,
+  },
+  alternativesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  alternativeBadge: {
+    backgroundColor: '#E8F0EC',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  alternativeText: {
+    fontSize: 12,
+    color: '#2F4F4F',
+  },
+  actionsContainer: {
+    marginBottom: 40,
+    gap: 12,
+  },
+  selectButton: {
+    backgroundColor: '#7BC9A8',
+    padding: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  selectButtonText: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#FFFFFF',
   },
-  errorInfo: {
-    backgroundColor: '#fff3e0',
-    padding: 15,
-    borderRadius: 12,
+  retryButton: {
+    backgroundColor: '#E8F0EC',
+    padding: 16,
+    borderRadius: 16,
     alignItems: 'center',
   },
-  errorText: {
+  retryButtonText: {
     fontSize: 16,
-    color: '#e65100',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  errorSubtext: {
-    fontSize: 14,
-    color: '#888',
-    textAlign: 'center',
+    fontWeight: '500',
+    color: '#2F4F4F',
   },
 });
+
+// Добавьте SafeAreaView в импорты
+import { SafeAreaView } from 'react-native-safe-area-context';
