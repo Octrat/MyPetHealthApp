@@ -37,7 +37,7 @@ export default function BreedRecognizer({ onBreedDetected, onClose, preselectedS
   const [result, setResult] = useState<VisionResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
 
-  const API_URL = 'http://192.168.0.77:3001';
+  const API_URL = 'http://192.168.0.29:3001';
 
   // Запрос разрешения на камеру
   const requestCameraPermission = async (): Promise<boolean> => {

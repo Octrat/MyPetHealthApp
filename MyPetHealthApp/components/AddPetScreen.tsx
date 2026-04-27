@@ -10,9 +10,10 @@ import {
   Alert,
   ActivityIndicator,
   Image,
-  Modal
+  Modal,
+  Platform
 } from 'react-native';
-
+import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../src/hooks/AuthContext';
 import { Pet } from '../src/types';
 import { petsAPI } from '../src/services/api';
@@ -20,7 +21,7 @@ import { analyzePetHealthByCategory, SizeCategory } from '../src/utils/healthChe
 import { AppScreen } from '../src/types/navigation';
 import BreedRecognizer from './BreedRecognizer';
 
-const BASE_URL = 'http://192.168.0.77:3001';
+const BASE_URL = 'http://192.168.0.29:3001';
 
 type Breed = { 
   id: number; 
@@ -54,6 +55,8 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
   const [age, setAge] = useState('');
   const [sex, setSex] = useState<'male' | 'female' | null>(null);
   const [neutered, setNeutered] = useState(false);
+  const [description, setDescription] = useState('');
+  const [petPhoto, setPetPhoto] = useState<string | null>(null);
 
   const isActive = (screen: AppScreen) => {
     return screen === 'addPet';
@@ -92,6 +95,63 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
     fetchBreeds();
   }, [species, breedQuery]);
 
+  // Выбор фото
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    
+    if (status !== 'granted') {
+      Alert.alert('Ошибка', 'Нужно разрешение для доступа к фотографиям');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets[0].base64) {
+      setPetPhoto(result.assets[0].base64);
+    }
+  };
+
+  // Сделать фото
+  const takePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    
+    if (status !== 'granted') {
+      Alert.alert('Ошибка', 'Нужно разрешение для доступа к камере');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets[0].base64) {
+      setPetPhoto(result.assets[0].base64);
+    }
+  };
+
+  // Показать меню выбора фото
+  const showImagePickerOptions = () => {
+    Alert.alert(
+      'Фото питомца',
+      'Выберите способ добавления фото',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        { text: 'Сделать фото', onPress: takePhoto },
+        { text: 'Выбрать из галереи', onPress: pickImage },
+      ],
+      { cancelable: true }
+    );
+  };
+
   // Обработчик распознанной породы
   const handleBreedDetected = (detectedBreed: string) => {
     setBreedQuery(detectedBreed);
@@ -115,32 +175,66 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
     setAge('');
     setSex(null);
     setNeutered(false);
+    setDescription('');
+    setPetPhoto(null);
     setEditingPetId(null);
   };
 
   // Сохранение питомца
   const savePet = async () => {
-    if (!name || !species || !selectedBreed || !weight || !height || !age || !sex) {
-      Alert.alert('Ошибка', 'Заполните все поля');
-      return;
+    // Базовая проверка только для новых питомцев
+    if (!editingPetId) {
+      // Новая запись - проверяем все поля
+      if (!name || !species || !selectedBreed || !weight || !height || !age || !sex) {
+        Alert.alert('Ошибка', 'Заполните все поля');
+        return;
+      }
+    } else {
+      // Редактирование - проверяем только имя
+      if (!name) {
+        Alert.alert('Ошибка', 'Введите имя питомца');
+        return;
+      }
     }
 
     try {
+      const photoData = petPhoto || undefined;
+
       if (editingPetId) {
         // Обновление существующего питомца
+        await petsAPI.updatePet(
+          editingPetId,
+          name,
+          species || 'dog',  // значение по умолчанию
+          selectedBreed?.id || 1,  // значение по умолчанию
+          weight ? Number(weight) : 0,
+          height ? Number(height) : 0,
+          age ? Number(age) : 0,
+          sex || 'male',
+          neutered,
+          description,
+          photoData
+        );
+        
+        // Обновляем список питомцев
+        const updatedPets = await petsAPI.getPets(user!.id);
+        setPets(updatedPets);
+        
         Alert.alert('Успех', `Данные питомца ${name} обновлены!`);
       } else {
         // Добавление нового питомца
         const newPet = await petsAPI.addPet(
           user!.id,
           name,
-          species,
-          selectedBreed.id,
+          species!,
+          selectedBreed!.id,
           Number(weight),
           Number(height),
           Number(age),
-          sex,
-          neutered
+          sex!,
+          neutered,
+          description,
+          photoData
         );
         setPets(prev => [...prev, newPet]);
         Alert.alert('Успех', `Питомец ${name} сохранен!`);
@@ -150,7 +244,8 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
       resetForm();
 
     } catch (err: any) {
-      Alert.alert('Ошибка', err.message);
+      console.error('Save error:', err);
+      Alert.alert('Ошибка', err.message || 'Не удалось сохранить питомца');
     }
   };
 
@@ -160,13 +255,51 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
     setName(pet.name);
     setSpecies(pet.species as 'dog' | 'cat');
     setBreedQuery(pet.breed_name || '');
+    setSelectedBreed(pet.breed_id ? { id: pet.breed_id, name: pet.breed_name || '' } : null);
     setWeight(pet.weight?.toString() || '');
     setHeight(pet.height?.toString() || '');
     setAge(pet.age?.toString() || '');
     setSex(pet.sex as 'male' | 'female' || null);
     setNeutered(pet.neutered || false);
+    setDescription(pet.description || '');
+    
+    // Извлекаем base64 из photo_url, если там есть данные
+    if (pet.photo_url) {
+      let base64String = pet.photo_url;
+      if (base64String.startsWith('data:image')) {
+        base64String = base64String.split(',')[1];
+      }
+      setPetPhoto(base64String);
+    } else {
+      setPetPhoto(null);
+    }
+    
     setShowForm(true);
     setShowRecognizer(false);
+  };
+
+  // Удаление питомца
+  const deletePet = (petId: number, petName: string) => {
+    Alert.alert(
+      'Удалить питомца',
+      `Вы уверены, что хотите удалить ${petName}?`,
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Удалить',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await petsAPI.deletePet(petId);
+              setPets(prev => prev.filter(p => p.id !== petId));
+              Alert.alert('Успех', 'Питомец удален');
+            } catch (err: any) {
+              Alert.alert('Ошибка', err.message);
+            }
+          }
+        }
+      ]
+    );
   };
 
   return (
@@ -199,6 +332,21 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
             <Text style={styles.formTitle}>
               {editingPetId ? '✏️ Редактировать питомца' : '➕ Новый питомец'}
             </Text>
+
+            {/* Фото питомца */}
+            <TouchableOpacity onPress={showImagePickerOptions} style={styles.photoContainer}>
+              {petPhoto ? (
+                <Image 
+                  source={{ uri: `data:image/jpeg;base64,${petPhoto}` }}
+                  style={styles.petPhoto}
+                />
+              ) : (
+                <View style={styles.photoPlaceholder}>
+                  <Text style={styles.photoPlaceholderText}>📷</Text>
+                  <Text style={styles.photoPlaceholderLabel}>Добавить фото</Text>
+                </View>
+              )}
+            </TouchableOpacity>
 
             <TextInput
               style={styles.input}
@@ -326,6 +474,17 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
               onChangeText={setAge}
             />
 
+            <Text style={styles.label}>Описание</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Расскажите о характере, привычках и особенностях питомца..."
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+
             <TouchableOpacity style={styles.saveButton} onPress={savePet}>
               <Text style={styles.saveText}>
                 {editingPetId ? '💾 Сохранить изменения' : '✅ Сохранить питомца'}
@@ -344,88 +503,129 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
         {loading && <ActivityIndicator style={{ marginTop: 20 }} />}
 
         {/* список питомцев */}
-        {pets.map((pet) => {
-          const health = analyzePetHealthByCategory({
-            sizeCategory: (pet.breed_size_category ?? 'medium') as SizeCategory,
-            weight: pet.weight ?? 0,
-            height: pet.height ?? 0,
-            age: pet.age ?? 0,
-            sex: pet.sex ?? 'male',
-            neutered: pet.neutered ?? false,
-          });
+        {/* список питомцев */}
+{pets.map((pet) => {
+  const health = analyzePetHealthByCategory({
+    sizeCategory: (pet.breed_size_category ?? 'medium') as SizeCategory,
+    weight: pet.weight ?? 0,
+    height: pet.height ?? 0,
+    age: pet.age ?? 0,
+    sex: pet.sex ?? 'male',
+    neutered: pet.neutered ?? false,
+  });
 
-          return (
-            <View key={pet.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.petName}>{pet.name}</Text>
-                <TouchableOpacity 
-                  style={styles.editButton}
-                  onPress={() => startEditPet(pet)}
-                >
-                  <Text style={styles.editButtonText}>✏️</Text>
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.petInfo}>
-                {pet.species === 'dog' ? '🐶 Собака' : '🐱 Кошка'}
-              </Text>
-
-              {/* Отображение породы */}
-              {pet.breed_name && (
-                <Text style={styles.petInfo}>
-                  🐕 Порода: {pet.breed_name}
-                  {pet.breed_name_ru ? ` (${pet.breed_name_ru})` : ''}
-                </Text>
-              )}
-
-              {pet.weight && <Text style={styles.petInfo}>⚖️ Вес: {pet.weight} кг</Text>}
-              {pet.height && <Text style={styles.petInfo}>📏 Рост: {pet.height} см</Text>}
-              {pet.age && <Text style={styles.petInfo}>🎂 Возраст: {pet.age} лет</Text>}
-              {pet.sex && (
-                <Text style={styles.petInfo}>
-                  {pet.sex === 'male' ? '♂ Пол: Мужской' : '♀ Пол: Женский'}
-                </Text>
-              )}
-              {pet.neutered && <Text style={styles.petInfo}>✅ Стерилизован(а)</Text>}
-
-              {health && (
-                <View style={styles.chartsSection}>
-                  <Text style={styles.chartsTitle}>📊 Сравнение с нормой</Text>
-
-                  <View style={styles.metricCard}>
-                    <Text style={styles.metricName}>Вес</Text>
-                    <Text>
-                      {pet.weight} кг / {health.weightRange?.min}-{health.weightRange?.max} кг
-                    </Text>
-                    <Text
-                      style={[
-                        styles.statusText,
-                        { color: health.weightStatus === 'норма' ? '#4CAF50' : '#FF6347' }
-                      ]}
-                    >
-                      {health.weightStatus === 'норма' ? '✓ В норме' : '⚠ Отклонение'}
-                    </Text>
-                  </View>
-
-                  <View style={styles.metricCard}>
-                    <Text style={styles.metricName}>Рост</Text>
-                    <Text>
-                      {pet.height} см / {health.heightRange?.min}-{health.heightRange?.max} см
-                    </Text>
-                    <Text
-                      style={[
-                        styles.statusText,
-                        { color: health.heightStatus === 'норма' ? '#4CAF50' : '#FF6347' }
-                      ]}
-                    >
-                      {health.heightStatus === 'норма' ? '✓ В норме' : '⚠ Отклонение'}
-                    </Text>
-                  </View>
-                </View>
-              )}
+  return (
+    <View key={pet.id} style={styles.card}>
+      <View style={styles.cardHeader}>
+        <View style={styles.petHeaderLeft}>
+          {pet.photo_url ? (
+            <Image 
+              source={{ uri: pet.photo_url.startsWith('data:') 
+                ? pet.photo_url 
+                : `data:image/jpeg;base64,${pet.photo_url}`
+              }}
+              style={styles.cardPhoto}
+            />
+          ) : (
+            <View style={styles.cardPhotoPlaceholder}>
+              <Text>{pet.species === 'dog' ? '🐶' : '🐱'}</Text>
             </View>
-          );
-        })}
+          )}
+          <Text style={styles.petName}>{pet.name}</Text>
+        </View>
+        <View style={styles.cardActions}>
+          <TouchableOpacity 
+            style={styles.editButton}
+            onPress={() => startEditPet(pet)}
+          >
+            <Text style={styles.editButtonText}>✏️</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.deleteButton}
+            onPress={() => deletePet(pet.id, pet.name)}
+          >
+            <Text style={styles.deleteButtonText}>🗑️</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <Text style={styles.petInfo}>
+        {pet.species === 'dog' ? '🐶 Собака' : '🐱 Кошка'}
+      </Text>
+
+      {/* Отображение породы */}
+      {pet.breed_name && (
+        <Text style={styles.petInfo}>
+          🐕 Порода: {pet.breed_name}
+          {pet.breed_name_ru ? ` (${pet.breed_name_ru})` : ''}
+        </Text>
+      )}
+
+      {pet.weight !== undefined && pet.weight > 0 && (
+        <Text style={styles.petInfo}>⚖️ Вес: {pet.weight} кг</Text>
+      )}
+      {pet.height !== undefined && pet.height > 0 && (
+        <Text style={styles.petInfo}>📏 Рост: {pet.height} см</Text>
+      )}
+      {pet.age !== undefined && pet.age > 0 && (
+        <Text style={styles.petInfo}>🎂 Возраст: {pet.age} лет</Text>
+      )}
+      {pet.sex && (
+        <Text style={styles.petInfo}>
+          {pet.sex === 'male' ? '♂ Пол: Мужской' : '♀ Пол: Женский'}
+        </Text>
+      )}
+      {pet.neutered && <Text style={styles.petInfo}>✅ Стерилизован(а)</Text>}
+      
+      {pet.description && (
+        <View style={styles.descriptionSection}>
+          <Text style={styles.descriptionTitle}>📝 Описание:</Text>
+          <Text style={styles.descriptionText}>{pet.description}</Text>
+        </View>
+      )}
+
+      {health && (pet.weight !== undefined || pet.height !== undefined) && (
+        <View style={styles.chartsSection}>
+          <Text style={styles.chartsTitle}>📊 Сравнение с нормой</Text>
+
+          {pet.weight !== undefined && pet.weight > 0 && (
+            <View style={styles.metricCard}>
+              <Text style={styles.metricName}>Вес</Text>
+              <Text>
+                {pet.weight} кг / {health.weightRange?.min}-{health.weightRange?.max} кг
+              </Text>
+              <Text
+                style={[
+                  styles.statusText,
+                  { color: health.weightStatus === 'норма' ? '#4CAF50' : '#FF6347' }
+                ]}
+              >
+                {health.weightStatus === 'норма' ? '✓ В норме' : '⚠ Отклонение'}
+              </Text>
+            </View>
+          )}
+
+          {pet.height !== undefined && pet.height > 0 && (
+            <View style={styles.metricCard}>
+              <Text style={styles.metricName}>Рост</Text>
+              <Text>
+                {pet.height} см / {health.heightRange?.min}-{health.heightRange?.max} см
+              </Text>
+              <Text
+                style={[
+                  styles.statusText,
+                  { color: health.heightStatus === 'норма' ? '#4CAF50' : '#FF6347' }
+                ]}
+              >
+                {health.heightStatus === 'норма' ? '✓ В норме' : '⚠ Отклонение'}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
+    </View>
+  );
+})}
       </ScrollView>
 
       {/* Модальное окно для распознавания породы */}
@@ -439,7 +639,7 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
           <BreedRecognizer
             onBreedDetected={handleBreedDetected}
             onClose={() => setShowRecognizer(false)}
-            preselectedSpecies={species || undefined}  // ← Добавленная строка
+            preselectedSpecies={species || undefined}
           />
         </View>
       </Modal>
@@ -561,6 +761,10 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     fontSize: 16,
   },
+  textArea: {
+    height: 100,
+    textAlignVertical: 'top',
+  },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -641,6 +845,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  petHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   petName: {
     fontSize: 20,
     fontWeight: '700',
@@ -652,10 +865,76 @@ const styles = StyleSheet.create({
   editButtonText: {
     fontSize: 18,
   },
+  deleteButton: {
+    padding: 8,
+  },
+  deleteButtonText: {
+    fontSize: 18,
+  },
   petInfo: {
     fontSize: 14,
     color: '#7A8F88',
     marginTop: 4,
+  },
+  photoContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  petPhoto: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 2,
+    borderColor: '#7BC9A8',
+  },
+  photoPlaceholder: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#F0F0F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#7BC9A8',
+    borderStyle: 'dashed',
+  },
+  photoPlaceholderText: {
+    fontSize: 40,
+  },
+  photoPlaceholderLabel: {
+    fontSize: 12,
+    color: '#7A8F88',
+    marginTop: 8,
+  },
+  cardPhoto: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+  },
+  cardPhotoPlaceholder: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#F0F0F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  descriptionSection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#EEE',
+  },
+  descriptionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2F4F4F',
+    marginBottom: 4,
+  },
+  descriptionText: {
+    fontSize: 14,
+    color: '#7A8F88',
+    lineHeight: 20,
   },
   chartsSection: {
     marginTop: 16,

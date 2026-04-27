@@ -26,7 +26,7 @@ import { petsAPI } from './src/services/api';
 import { Pet } from './src/types';
 import { AppScreen } from './src/types/navigation';
 
-const BASE_URL = 'http://192.168.0.77:3001';
+const BASE_URL = 'http://192.168.0.29:3001';
 
 function MainApp() {
   const isActive = (screen: AppScreen) => {

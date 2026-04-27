@@ -37,16 +37,14 @@ export interface Pet {
   breed_name?: string;
   breed_name_ru?: string;
   birth_date?: string;
-  weight: number; // ⚡ сделали обязательным
+  weight: number;
   height?: number;
-  age: number;    // ⚡ сделали обязательным
-  photo_url?: string;
-
+  age: number;
+  photo_url?: string;  // Будем хранить base64 здесь
   sex?: 'male' | 'female';
   neutered?: boolean;
-
   breed_size_category?: 'toy' | 'small' | 'medium' | 'large' | 'giant';
-
+  description?: string;  // Добавить эту строку
   created_at?: string;
 }
 

@@ -1,21 +1,18 @@
-//Users/mariabelobruh/Desktop/Учеба/Итог/MyPetHealthApp/src/services/api.ts
+// /src/services/api.ts
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthResponse, LoginCredentials, RegisterData, User } from '../types';
 
 // Базовый URL нашего бэкенда
-// Базовый URL нашего бэкенда через ngrok
-// /src/services/api.ts
-const API_URL = 'http://192.168.0.77:3001/api';
-console.log('API URL:', API_URL);  // должно выводиться в консоли Expo
-
-
+const API_URL = 'http://192.168.0.29:3001/api';
+console.log('API URL:', API_URL);
 
 const api = axios.create({
   baseURL: API_URL,
   timeout: 10000,
 });
 
+// 🔵 ИНТЕРСЕПТОР ДЛЯ ЗАПРОСОВ (логируем все запросы)
 api.interceptors.request.use(
   async (config) => {
     try {
@@ -23,6 +20,12 @@ api.interceptors.request.use(
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
+      // Логируем запрос - безопасно проверяем наличие baseURL
+      const fullUrl = config.baseURL 
+        ? `${config.baseURL}${config.url}` 
+        : config.url || 'unknown URL';
+      console.log('📤 REQUEST:', config.method?.toUpperCase(), fullUrl);
+      console.log('📦 DATA:', config.data);
     } catch (error) {
       console.log('Error getting token:', error);
     }
@@ -31,19 +34,30 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// src/services/api.ts
+// 🟢 ИНТЕРСЕПТОР ДЛЯ ОТВЕТОВ (логируем ответы и ошибки)
+api.interceptors.response.use(
+  (response) => {
+    console.log('✅ RESPONSE:', response.status, response.config.url);
+    return response;
+  },
+  (error) => {
+    // Безопасно получаем URL запроса
+    const requestUrl = error.response?.config?.url || error.config?.url || 'unknown URL';
+    console.log('❌ ERROR:', error.response?.status, requestUrl);
+    console.log('❌ ERROR DATA:', error.response?.data);
+    return Promise.reject(error);
+  }
+);
+
 export const petsAPI = {
   getPets: async (userId: number) => {
-    // получаем питомцев
     const petsResponse = await api.get(`/pets?user_id=${userId}`);
-    const pets = petsResponse.data; // массив Pet[]
+    const pets = petsResponse.data;
 
-    // получаем все породы для собак и кошек
     const dogBreeds = await api.get(`/pets/breeds?species=dog`);
     const catBreeds = await api.get(`/pets/breeds?species=cat`);
     const breeds = [...dogBreeds.data, ...catBreeds.data];
 
-    // создаем словарь breed_id -> {name, name_ru, size_category}
     const breedsMap: Record<number, { name: string; name_ru?: string; size_category?: string }> = {};
     breeds.forEach((breed: any) => {
       breedsMap[breed.id] = {
@@ -53,7 +67,6 @@ export const petsAPI = {
       };
     });
 
-    // добавляем к каждому питомцу поля breed_name, breed_name_ru и breed_size_category
     const petsWithBreedInfo = pets.map((pet: any) => ({
       ...pet,
       breed_name: breedsMap[pet.breed_id]?.name,
@@ -73,7 +86,9 @@ export const petsAPI = {
     height: number,
     age: number,
     sex: 'male' | 'female',
-    neutered: boolean
+    neutered: boolean,
+    description?: string,
+    photoBase64?: string
   ) => {
     const response = await api.post('/pets', {
       user_id: userId,
@@ -85,8 +100,46 @@ export const petsAPI = {
       age,
       sex,
       neutered,
+      description,
+      photo_url: photoBase64,
     });
   
+    return response.data;
+  },
+
+  updatePet: async (
+    petId: number,
+    name: string,
+    species: 'dog' | 'cat',
+    breedId: number,
+    weight: number,
+    height: number,
+    age: number,
+    sex: 'male' | 'female',
+    neutered: boolean,
+    description?: string,
+    photoBase64?: string
+  ) => {
+    // Используем POST вместо PUT
+    const response = await api.post(`/pets/${petId}`, {
+      name,
+      species,
+      breed_id: breedId,
+      weight,
+      height,
+      age,
+      sex,
+      neutered,
+      description,
+      photo_url: photoBase64,
+      _method: 'PUT' // Для совместимости, если бэкенд использует это
+    });
+  
+    return response.data;
+  },
+
+  deletePet: async (petId: number) => {
+    const response = await api.delete(`/pets/${petId}`);
     return response.data;
   },
 
