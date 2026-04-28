@@ -3,7 +3,7 @@ import { query } from '../config/database.js';
 import bcrypt from 'bcryptjs';
 
 export const User = {
-  // Создание нового пользователя
+  // Создание нового пользователя (роль по умолчанию 'user')
   async create(userData) {
     const { email, password, name } = userData;
 
@@ -12,8 +12,8 @@ export const User = {
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
     const result = await query(
-      'INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id, email, name, avatar_path, created_at',
-      [email, passwordHash, name]
+      'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, avatar_path, role, created_at',
+      [email, passwordHash, name, 'user']  // роль по умолчанию 'user'
     );
 
     return result.rows[0];
@@ -22,7 +22,7 @@ export const User = {
   // Поиск пользователя по email
   async findByEmail(email) {
     const result = await query(
-      'SELECT id, email, name, avatar_path, password_hash, created_at FROM users WHERE email = $1',
+      'SELECT id, email, name, avatar_path, password_hash, role, created_at FROM users WHERE email = $1',
       [email]
     );
 
@@ -32,7 +32,7 @@ export const User = {
   // Поиск пользователя по ID
   async findById(id) {
     const result = await query(
-      'SELECT id, email, name, avatar_path, created_at FROM users WHERE id = $1',
+      'SELECT id, email, name, avatar_path, role, created_at FROM users WHERE id = $1',
       [id]
     );
 
@@ -71,13 +71,35 @@ export const User = {
       values.push(updatedData.avatar_path);
     }
 
+    if (updatedData.role !== undefined) {
+      fields.push(`role = $${i++}`);
+      values.push(updatedData.role);
+    }
+
     if (fields.length === 0) return this.findById(id);
 
     const result = await query(
-      `UPDATE users SET ${fields.join(', ')} WHERE id = $${i} RETURNING id, email, name, avatar_path`,
+      `UPDATE users SET ${fields.join(', ')} WHERE id = $${i} RETURNING id, email, name, avatar_path, role`,
       [...values, id]
     );
 
     return result.rows[0];
   },
+
+  // Получить всех пользователей (для админа)
+  async findAll() {
+    const result = await query(
+      'SELECT id, email, name, avatar_path, role, created_at FROM users ORDER BY created_at DESC'
+    );
+    return result.rows;
+  },
+
+  // Обновить роль пользователя (для админа)
+  async updateRole(id, role) {
+    const result = await query(
+      'UPDATE users SET role = $1 WHERE id = $2 RETURNING id, email, name, role',
+      [role, id]
+    );
+    return result.rows[0];
+  }
 };

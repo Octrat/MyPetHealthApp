@@ -1,19 +1,26 @@
-///Users/mariabelobruh/Desktop/Учеба/Итог/MyPetHealthApp/backend/src/middleware/auth.js
+// backend/src/middleware/auth.js
 import jwt from 'jsonwebtoken';
 
 export const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
-
+  const token = authHeader && authHeader.split(' ')[1];
+  
   if (!token) {
-    return res.status(401).json({ message: 'Access token required' });
+    return res.status(401).json({ message: 'Требуется авторизация' });
   }
-
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+  
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
     if (err) {
-      return res.status(403).json({ message: 'Invalid or expired token' });
+      return res.status(403).json({ message: 'Недействительный токен' });
     }
-    req.user = user;
+    req.user = { userId: decoded.userId, role: decoded.role };
     next();
   });
+};
+
+export const requireAdmin = (req, res, next) => {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ message: 'Доступ запрещён. Требуются права администратора' });
+  }
+  next();
 };

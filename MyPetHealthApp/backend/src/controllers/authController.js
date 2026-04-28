@@ -1,10 +1,10 @@
-///Users/mariabelobruh/Desktop/Учеба/Итог/MyPetHealthApp/backend/src/controllers/authController.js
+// backend/src/controllers/authController.js
 import { User } from '../models/User.js';
 import jwt from 'jsonwebtoken';
 
-// Генерация JWT токена
-const generateToken = (userId) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
+// Генерация JWT токена с ролью
+const generateToken = (userId, role) => {
+  return jwt.sign({ userId, role }, process.env.JWT_SECRET, { expiresIn: '7d' });
 };
 
 export const authController = {
@@ -13,14 +13,12 @@ export const authController = {
     try {
       const { email, password, name } = req.body;
 
-      // Проверяем обязательные поля только email и password
       if (!email || !password) {
         return res.status(400).json({ 
           message: 'Email и пароль обязательны для заполнения' 
         });
       }
 
-      // Проверяем существует ли пользователь
       const existingUser = await User.findByEmail(email);
       if (existingUser) {
         return res.status(409).json({ 
@@ -28,14 +26,9 @@ export const authController = {
         });
       }
 
-      // Если name не передан, сохраняем как null
       const userName = name || null;
-
-      // Создаем пользователя
       const user = await User.create({ email, password, name: userName });
-
-      // Генерируем токен
-      const token = generateToken(user.id);
+      const token = generateToken(user.id, user.role);
 
       res.status(201).json({
         message: 'Пользователь успешно зарегистрирован',
@@ -44,7 +37,8 @@ export const authController = {
           id: user.id,
           email: user.email,
           name: user.name || '',
-          avatar_path: user.avatar_path || '' // 🔹 добавляем
+          avatar_path: user.avatar_path || '',
+          role: user.role  // ← добавляем role
         }
       });
 
@@ -62,8 +56,6 @@ export const authController = {
       console.log("LOGIN START");
   
       const { email, password } = req.body;
-  
-      // Ищем пользователя
       const user = await User.findByEmail(email);
       console.log("USER FOUND:", user);
   
@@ -73,7 +65,6 @@ export const authController = {
         });
       }
   
-      // Проверяем пароль
       const isPasswordValid = await User.verifyPassword(
         password,
         user.password_hash
@@ -85,8 +76,7 @@ export const authController = {
         });
       }
   
-      // Генерируем токен
-      const token = generateToken(user.id);
+      const token = generateToken(user.id, user.role);
   
       res.json({
         message: 'Вход выполнен успешно',
@@ -95,7 +85,8 @@ export const authController = {
           id: user.id,
           email: user.email,
           name: user.name || '',
-          avatar_path: user.avatar_path || '' // 🔹 добавляем
+          avatar_path: user.avatar_path || '',
+          role: user.role  // ← добавляем role
         }
       });
   
@@ -105,8 +96,7 @@ export const authController = {
         message: 'Ошибка при входе в систему'
       });
     }
-  }
-,  
+  },
 
   // Получение данных текущего пользователя
   async getMe(req, res) {
@@ -121,7 +111,8 @@ export const authController = {
           id: user.id,
           email: user.email,
           name: user.name || '',
-          avatar_path: user.avatar_path || '' // 🔹 добавляем
+          avatar_path: user.avatar_path || '',
+          role: user.role  // ← добавляем role
         } 
       });
     } catch (error) {

@@ -15,9 +15,10 @@ import { useAuth } from '../src/hooks/AuthContext';
 
 interface LoginScreenProps {
   onSwitchToRegister: () => void;
+  onLoginSuccess?: (userRole: string) => void;  // ← новый пропс
 }
 
-export default function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
+export default function LoginScreen({ onSwitchToRegister, onLoginSuccess }: LoginScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -35,7 +36,11 @@ export default function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
     try {
       const result = await login({ email, password });
 
-      if (!result.success) {
+      if (result.success && result.data) {
+        const userRole = result.data.user.role;
+        // После успешного входа передаём роль пользователя
+        onLoginSuccess?.(userRole);
+      } else {
         Alert.alert('Ошибка', result.error || 'Не удалось войти');
       }
     } catch {

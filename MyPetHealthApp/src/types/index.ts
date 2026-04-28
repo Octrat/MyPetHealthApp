@@ -6,7 +6,9 @@ export interface User {
   email: string;
   name?: string;       // имя опционально
   created_at?: string;
-  avatar_path?: string; // ✅ добавляем поле
+  avatar_path?: string;
+  address?: string;
+  role: 'user' | 'admin';  // ← добавляем role
 }
 
 // Типы для API ответов
@@ -24,7 +26,7 @@ export interface LoginCredentials {
 export interface RegisterData {
   email: string;
   password: string;
-  // name больше не передаем
+  name?: string;  // имя можно передавать при регистрации
 }
 
 // Тип питомца
@@ -40,11 +42,11 @@ export interface Pet {
   weight: number;
   height?: number;
   age: number;
-  photo_url?: string;  // Будем хранить base64 здесь
+  photo_url?: string;
   sex?: 'male' | 'female';
   neutered?: boolean;
   breed_size_category?: 'toy' | 'small' | 'medium' | 'large' | 'giant';
-  description?: string;  // Добавить эту строку
+  description?: string;
   created_at?: string;
 }
 

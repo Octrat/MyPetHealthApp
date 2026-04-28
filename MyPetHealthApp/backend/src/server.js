@@ -20,6 +20,8 @@ import { testConnection } from './config/database.js';
 // ИМПОРТЫ ДЛЯ AI АССИСТЕНТА И РАСПОЗНАВАНИЯ ПОРОД
 import { askGemini } from './services/geminiService.js';
 import { recognizeBreedWithGemini, quickBreedRecognize } from './services/geminiVisionService.js';
+import adminRoutes from './routes/admin.js';
+
 
 dotenv.config();
 
@@ -147,6 +149,8 @@ app.post('/api/vision/quick-recognize', authenticateToken, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+app.use('/api/admin', authenticateToken, adminRoutes);
+
 
 // Запуск сервера
 app.listen(PORT, '0.0.0.0', () => {

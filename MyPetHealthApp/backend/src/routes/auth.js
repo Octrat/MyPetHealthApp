@@ -1,4 +1,4 @@
-///Users/mariabelobruh/Desktop/Учеба/Итог/MyPetHealthApp/backend/src/routes/auth.js
+// backend/src/routes/auth.js
 import express from 'express';
 import { authController } from '../controllers/authController.js';
 import { authenticateToken } from '../middleware/auth.js';
@@ -12,6 +12,6 @@ router.post('/login', authController.login);
 
 // Защищенные маршруты
 router.get('/me', authenticateToken, authController.getMe);
-router.use('/user', userRoutes); // 🔹 новый маршрут
+router.use('/user', authenticateToken, userRoutes); // <- добавили authenticateToken
 
 export default router;

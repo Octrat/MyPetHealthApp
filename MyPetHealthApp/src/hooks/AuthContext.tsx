@@ -13,13 +13,14 @@ interface AuthResult {
 interface AuthContextProps {
   user: User | null;
   isLoading: boolean;
+  isAdmin: boolean;  // ← ДОБАВЛЯЕМ
   login: (credentials: LoginCredentials) => Promise<AuthResult>;
   register: (data: RegisterData) => Promise<AuthResult>;
   logout: () => Promise<void>;
   updateUser: (data: Partial<User>) => Promise<void>;
   refreshUser: () => Promise<void>;
   getCachedAvatarUri: () => Promise<string | null>;
-  avatarUri: string | null;  // Добавлен в интерфейс
+  avatarUri: string | null;
 }
 
 const BASE_URL = 'http://192.168.0.29:3001/api/auth';
@@ -43,7 +44,10 @@ const prefetchAvatar = async (avatarPath: string | undefined) => {
 const useAuthLogic = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [avatarUri, setAvatarUri] = useState<string | null>(null);  // Переименовано из cachedAvatarUri
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+
+  // Проверяем, является ли пользователь админом
+  const isAdmin = user?.role === 'admin';
 
   // Загрузка аватара
   const loadAvatar = async (avatarPath: string | undefined) => {
@@ -63,7 +67,6 @@ const useAuthLogic = () => {
         const userData = await AsyncStorage.getItem('userData');
         if (token && userData) {
           const parsedUser = JSON.parse(userData);
-          // Предзагружаем аватар при старте
           if (parsedUser.avatar_path) {
             await prefetchAvatar(parsedUser.avatar_path);
             await loadAvatar(parsedUser.avatar_path);
@@ -93,7 +96,6 @@ const useAuthLogic = () => {
       const user: User = result.user;
       const token: string = result.token;
 
-      // Предзагружаем аватар
       if (user.avatar_path) {
         await prefetchAvatar(user.avatar_path);
         await loadAvatar(user.avatar_path);
@@ -112,7 +114,7 @@ const useAuthLogic = () => {
 
   const register = async (data: RegisterData): Promise<AuthResult> => {
     try {
-      const payload = { email: data.email, password: data.password };
+      const payload = { email: data.email, password: data.password, name: data.name };
       const response = await fetch(`${BASE_URL}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -159,10 +161,8 @@ const useAuthLogic = () => {
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || 'Ошибка обновления');
 
-      // Сохраняем новые данные локально
       const updatedUser = { ...user, ...data, ...result.user };
       
-      // Если обновился аватар, предзагружаем его
       if (updatedUser.avatar_path && updatedUser.avatar_path !== user.avatar_path) {
         await prefetchAvatar(updatedUser.avatar_path);
         await loadAvatar(updatedUser.avatar_path);
@@ -212,13 +212,14 @@ const useAuthLogic = () => {
   return { 
     user, 
     isLoading, 
+    isAdmin,  // ← ВОЗВРАЩАЕМ isAdmin
     login, 
     register, 
     logout, 
     updateUser, 
     refreshUser,
     getCachedAvatarUri,
-    avatarUri  // Теперь возвращаем avatarUri
+    avatarUri
   };
 };
 

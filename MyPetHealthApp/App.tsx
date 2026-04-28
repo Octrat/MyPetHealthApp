@@ -21,6 +21,8 @@ import ProfileScreen from './components/ProfileScreen';
 import PetMedicationsScreen from './components/PetMedicationsScreen';
 import PetAssistant from './components/PetAssistant';
 import BottomNav from './components/BottomNav'; // Добавляем импорт BottomNav
+import AdminPanel from './components/admin/AdminPanel'; // ← добавляем админ-панель
+
 
 import { AuthProvider, useAuth } from './src/hooks/AuthContext';
 import { petsAPI } from './src/services/api';
@@ -42,9 +44,10 @@ function MainApp() {
     }
   }, [appState, user]);
 
-  useEffect(() => {
-    if (user && appState === 'login') setAppState('main');
-  }, [user, appState]);
+  // Удаляем автоматическое перенаправление, теперь оно через onLoginSuccess
+  // useEffect(() => {
+  //   if (user && appState === 'login') setAppState('main');
+  // }, [user, appState]);
 
   useEffect(() => {
     const loadPets = async () => {
@@ -64,8 +67,21 @@ function MainApp() {
 
   if (isLoading || appState === 'splash') return <SplashScreen />;
   
-  if (appState === 'login') 
-    return <LoginScreen onSwitchToRegister={() => setAppState('register')} />;
+  // Обновленный LoginScreen с onLoginSuccess
+  if (appState === 'login') {
+    return (
+      <LoginScreen 
+        onSwitchToRegister={() => setAppState('register')}
+        onLoginSuccess={(userRole) => {
+          if (userRole === 'admin') {
+            setAppState('admin-panel');
+          } else {
+            setAppState('main');
+          }
+        }}
+      />
+    );
+  }
   
   if (appState === 'register')
     return (
@@ -103,6 +119,16 @@ function MainApp() {
         onNavigate={(screen: AppScreen) => setAppState(screen)}
       />
     );
+  
+  // ← НОВЫЙ ЭКРАН для админ-панели
+  if (appState === 'admin-panel') {
+    return (
+      <AdminPanel
+        onBack={() => setAppState('main')}
+        onNavigate={(screen) => setAppState(screen as AppScreen)}
+      />
+    );
+  }
 
   // Main screen - с AI помощником
   return (
