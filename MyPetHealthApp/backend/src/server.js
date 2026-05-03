@@ -29,25 +29,34 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Настройка email транспорта (для теста используем ethereal.email)
-// Позже замени на реальные данные
+// ============================================
+// 📧 НАСТРОЙКА EMAIL (отправитель из .env)
+// ============================================
+
+// Настройка email транспорта из переменных окружения
 let transporter;
 let emailConfigured = false;
 
-// Пытаемся настроить email (опционально)
-try {
-  transporter = nodemailer.createTransport({
-    host: 'smtp.ethereal.email',
-    port: 587,
-    auth: {
-      user: process.env.ETHEREAL_EMAIL || 'test@ethereal.email',
-      pass: process.env.ETHEREAL_PASSWORD || 'test_password'
-    }
-  });
-  emailConfigured = true;
-  console.log('📧 Email transporter configured');
-} catch (error) {
-  console.warn('⚠️ Email not configured, notifications will be skipped');
+const smtpConfig = {
+  host: process.env.SMTP_HOST,
+  port: parseInt(process.env.SMTP_PORT) || 587,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+};
+
+// Если есть настройки SMTP, создаём транспортер
+if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+  try {
+    transporter = nodemailer.createTransport(smtpConfig);
+    emailConfigured = true;
+    console.log('📧 Email transporter configured with SMTP:', process.env.SMTP_HOST);
+  } catch (error) {
+    console.warn('⚠️ Failed to configure email transporter:', error.message);
+  }
+} else {
+  console.log('📧 Email notifications disabled. Set SMTP_HOST, SMTP_USER, SMTP_PASS to enable.');
 }
 
 // Проверка API ключей при запуске
@@ -249,7 +258,7 @@ app.post('/api/report-location', async (req, res) => {
       [petId, latitude, longitude, timestamp || new Date(), false]
     );
     
-    // Получаем владельца питомца и информацию о питомце
+    // Получаем владельца питомца (email получателя из БД)
     const petOwner = await pool.query(
       `SELECT u.id, u.email, u.name as owner_name, p.name as pet_name, p.qr_phone
        FROM pets p
@@ -266,13 +275,15 @@ app.post('/api/report-location', async (req, res) => {
     const googleMapsLink = `https://www.google.com/maps?q=${latitude},${longitude}`;
     const yandexMapsLink = `https://yandex.ru/maps/?pt=${longitude},${latitude}&z=15&l=map`;
     
-    // Отправляем email владельцу (если настроен email)
+    // Отправляем email владельцу (если настроен SMTP)
     let emailSent = false;
+    let emailError = null;
+    
     if (emailConfigured && transporter && owner.email) {
       try {
         const mailOptions = {
-          from: '"HealthyPaws" <noreply@healthypaws.com>',
-          to: owner.email,
+          from: `"${process.env.EMAIL_FROM_NAME || 'HealthyPaws'}" <${process.env.EMAIL_FROM_ADDRESS || 'noreply@healthypaws.com'}>`,
+          to: owner.email,  // Email из базы данных
           subject: `📍 ВАЖНО: Ваш питомец ${owner.pet_name} был найден!`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -304,11 +315,15 @@ app.post('/api/report-location', async (req, res) => {
           `
         };
         
-        await transporter.sendMail(mailOptions);
+        const info = await transporter.sendMail(mailOptions);
         emailSent = true;
         console.log(`📧 Уведомление отправлено владельцу на ${owner.email}`);
-      } catch (emailError) {
-        console.error('Email sending error:', emailError.message);
+        if (process.env.SMTP_HOST?.includes('ethereal')) {
+          console.log(`   📬 Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
+        }
+      } catch (error) {
+        emailError = error.message;
+        console.error('Email sending error:', emailError);
       }
     } else {
       console.log(`⚠️ Email не отправлен (настроен: ${emailConfigured}, email: ${owner.email})`);
@@ -324,7 +339,8 @@ app.post('/api/report-location', async (req, res) => {
       success: true, 
       message: emailSent ? 'Локация получена, владелец уведомлён' : 'Локация получена',
       reportId: result.rows[0].id,
-      emailSent: emailSent
+      emailSent: emailSent,
+      emailError: emailError || undefined
     });
   } catch (error) {
     console.error('Report location error:', error);

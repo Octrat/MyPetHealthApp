@@ -101,7 +101,7 @@ export async function recognizeBreedWithGemini(imageBase64, species = 'dog') {
     const response = await axios.post(GEMINI_URL, {
       contents: contents,
       generationConfig: {
-        maxOutputTokens: 1024,
+        maxOutputTokens: 2048,
         temperature: 0.3,
       }
     }, {
