@@ -4,7 +4,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { useAuth } from '../src/hooks/AuthContext';
 import { AppScreen } from '../src/types/navigation';
 
-const BASE_URL = 'http://192.168.0.29:3001';
+const BASE_URL = 'http://192.168.0.34:3001';
 
 interface BottomNavigationProps {
   currentScreen: AppScreen;

@@ -2,6 +2,7 @@ import path from 'path';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import nodemailer from 'nodemailer';
 import { fileURLToPath } from 'url';
 
 // Определяем __dirname для ES modules
@@ -13,20 +14,41 @@ import userRoutes from './routes/user.js';
 import petsRoutes from './routes/pets.js';
 import avatarRoutes from './routes/avatar.js';
 import visionRoutes from './routes/vision.js';
+import adminRoutes from './routes/admin.js';
 
 import { authenticateToken } from './middleware/auth.js';
 import { testConnection } from './config/database.js';
+import pool from './config/database.js';
 
 // ИМПОРТЫ ДЛЯ AI АССИСТЕНТА И РАСПОЗНАВАНИЯ ПОРОД
 import { askGemini } from './services/geminiService.js';
 import { recognizeBreedWithGemini, quickBreedRecognize } from './services/geminiVisionService.js';
-import adminRoutes from './routes/admin.js';
-
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Настройка email транспорта (для теста используем ethereal.email)
+// Позже замени на реальные данные
+let transporter;
+let emailConfigured = false;
+
+// Пытаемся настроить email (опционально)
+try {
+  transporter = nodemailer.createTransport({
+    host: 'smtp.ethereal.email',
+    port: 587,
+    auth: {
+      user: process.env.ETHEREAL_EMAIL || 'test@ethereal.email',
+      pass: process.env.ETHEREAL_PASSWORD || 'test_password'
+    }
+  });
+  emailConfigured = true;
+  console.log('📧 Email transporter configured');
+} catch (error) {
+  console.warn('⚠️ Email not configured, notifications will be skipped');
+}
 
 // Проверка API ключей при запуске
 console.log('\n🔐 API Keys Check:');
@@ -47,6 +69,9 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// Статические файлы для веб-страницы поиска питомца
+app.use(express.static(path.join(__dirname, '../../web')));
+
 app.use((req, res, next) => {
   console.log('➡️', req.method, req.url);
   next();
@@ -59,6 +84,7 @@ app.use('/api/user', authenticateToken, userRoutes);
 app.use('/api/pets', authenticateToken, petsRoutes);
 app.use('/api/user/avatar', authenticateToken, avatarRoutes);
 app.use('/api/vision', authenticateToken, visionRoutes);
+app.use('/api/admin', authenticateToken, adminRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
@@ -73,6 +99,9 @@ app.get('/', (req, res) => {
       assistant: '/api/assistant/ask',
       'vision-gemini': '/api/vision/gemini-recognize',
       'vision-quick': '/api/vision/quick-recognize',
+      'public-pet': '/api/public/pet/:id',
+      'report-location': '/api/report-location',
+      'pet-reports': '/api/pets/:id/reports',
     }
   });
 });
@@ -149,8 +178,177 @@ app.post('/api/vision/quick-recognize', authenticateToken, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-app.use('/api/admin', authenticateToken, adminRoutes);
 
+// ============================================
+// 🔍 ПУБЛИЧНЫЕ ЭНДПОИНТЫ ДЛЯ ПОИСКА ПОТЕРЯННЫХ ПИТОМЦЕВ
+// ============================================
+
+// Публичный эндпоинт для информации о питомце (без авторизации)
+app.get('/api/public/pet/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Получаем информацию о питомце
+    const petResult = await pool.query(
+      `SELECT p.*, 
+              b.name as breed_name, 
+              u.email as owner_email, 
+              u.name as owner_name,
+              p.qr_phone as contact_phone,
+              p.qr_address as contact_address,
+              p.qr_owner_name as contact_owner_name
+       FROM pets p
+       LEFT JOIN breeds b ON p.breed_id = b.id
+       LEFT JOIN users u ON p.user_id = u.id
+       WHERE p.id = $1`,
+      [id]
+    );
+    
+    if (petResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Питомец не найден' });
+    }
+    
+    const pet = petResult.rows[0];
+    
+    res.json({
+      pet: {
+        id: pet.id,
+        name: pet.name,
+        species: pet.species,
+        breed_name: pet.breed_name,
+        weight: pet.weight,
+        age: pet.age,
+        description: pet.description,
+      },
+      contact: {
+        ownerName: pet.contact_owner_name,
+        phone: pet.contact_phone,
+        address: pet.contact_address,
+        email: pet.owner_email,
+      }
+    });
+  } catch (error) {
+    console.error('Public pet info error:', error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
+// Эндпоинт для получения геолокации от нашедшего с отправкой уведомления
+app.post('/api/report-location', async (req, res) => {
+  const { petId, latitude, longitude, timestamp } = req.body;
+  
+  if (!petId || !latitude || !longitude) {
+    return res.status(400).json({ message: 'Недостаточно данных' });
+  }
+  
+  try {
+    // Сохраняем репорт в базу
+    const result = await pool.query(
+      `INSERT INTO pet_reports (pet_id, latitude, longitude, reported_at, is_notified)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id`,
+      [petId, latitude, longitude, timestamp || new Date(), false]
+    );
+    
+    // Получаем владельца питомца и информацию о питомце
+    const petOwner = await pool.query(
+      `SELECT u.id, u.email, u.name as owner_name, p.name as pet_name, p.qr_phone
+       FROM pets p
+       JOIN users u ON p.user_id = u.id
+       WHERE p.id = $1`,
+      [petId]
+    );
+    
+    if (petOwner.rows.length === 0) {
+      return res.status(404).json({ message: 'Питомец или владелец не найден' });
+    }
+    
+    const owner = petOwner.rows[0];
+    const googleMapsLink = `https://www.google.com/maps?q=${latitude},${longitude}`;
+    const yandexMapsLink = `https://yandex.ru/maps/?pt=${longitude},${latitude}&z=15&l=map`;
+    
+    // Отправляем email владельцу (если настроен email)
+    let emailSent = false;
+    if (emailConfigured && transporter && owner.email) {
+      try {
+        const mailOptions = {
+          from: '"HealthyPaws" <noreply@healthypaws.com>',
+          to: owner.email,
+          subject: `📍 ВАЖНО: Ваш питомец ${owner.pet_name} был найден!`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h1 style="color: #7BC9A8;">🐾 Ваш питомец найден!</h1>
+              <p>Здравствуйте, ${owner.owner_name || 'владелец'}!</p>
+              <p>Кто-то отсканировал QR-код вашего питомца <strong>${owner.pet_name}</strong> и отправил своё местоположение.</p>
+              
+              <h2>📍 Местоположение:</h2>
+              <p>
+                <strong>Широта:</strong> ${latitude}<br>
+                <strong>Долгота:</strong> ${longitude}<br>
+                <strong>Время:</strong> ${new Date().toLocaleString()}
+              </p>
+              
+              <p>
+                <a href="${googleMapsLink}" style="background-color: #7BC9A8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin-right: 10px;">
+                  🗺️ Google Maps
+                </a>
+                <a href="${yandexMapsLink}" style="background-color: #FF8C00; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">
+                  🗺️ Яндекс.Карты
+                </a>
+              </p>
+              
+              <p><strong>⚠️ Важно:</strong> Поторопитесь! Питомец может уйти с этого места.</p>
+              
+              <hr style="margin: 20px 0;">
+              <p style="color: #888; font-size: 12px;">Это письмо отправлено автоматически из приложения HealthyPaws.</p>
+            </div>
+          `
+        };
+        
+        await transporter.sendMail(mailOptions);
+        emailSent = true;
+        console.log(`📧 Уведомление отправлено владельцу на ${owner.email}`);
+      } catch (emailError) {
+        console.error('Email sending error:', emailError.message);
+      }
+    } else {
+      console.log(`⚠️ Email не отправлен (настроен: ${emailConfigured}, email: ${owner.email})`);
+    }
+    
+    // Обновляем статус уведомления
+    await pool.query(
+      `UPDATE pet_reports SET is_notified = $1 WHERE id = $2`,
+      [emailSent, result.rows[0].id]
+    );
+    
+    res.json({ 
+      success: true, 
+      message: emailSent ? 'Локация получена, владелец уведомлён' : 'Локация получена',
+      reportId: result.rows[0].id,
+      emailSent: emailSent
+    });
+  } catch (error) {
+    console.error('Report location error:', error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
+// Эндпоинт для получения репортов питомца (для владельца)
+app.get('/api/pets/:id/reports', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT id, latitude, longitude, reported_at, is_notified
+       FROM pet_reports
+       WHERE pet_id = $1
+       ORDER BY reported_at DESC`,
+      [id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get reports error:', error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
 
 // Запуск сервера
 app.listen(PORT, '0.0.0.0', () => {
@@ -162,4 +360,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🐕 Breed Recognition (Gemini): http://127.0.0.1:${PORT}/api/vision/gemini-recognize`);
   console.log(`⚡ Quick Breed Recognition: http://127.0.0.1:${PORT}/api/vision/quick-recognize`);
   console.log(`👁️ Legacy Vision API: http://127.0.0.1:${PORT}/api/vision/test`);
+  console.log(`🔍 Public Pet API: http://127.0.0.1:${PORT}/api/public/pet/:id`);
+  console.log(`📍 Report Location: http://127.0.0.1:${PORT}/api/report-location`);
+  console.log(`📧 Email notifications: ${emailConfigured ? '✅ Active' : '❌ Disabled'}`);
 });

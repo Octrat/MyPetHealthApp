@@ -1,3 +1,4 @@
+// components/AddPetScreen.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -20,9 +21,10 @@ import { petsAPI } from '../src/services/api';
 import { analyzePetHealthByCategory, SizeCategory } from '../src/utils/healthCheck';
 import { AppScreen } from '../src/types/navigation';
 import BreedRecognizer from './BreedRecognizer';
+import PetQRCode from './PetQRCode';
 import BottomNav from './BottomNav';
 
-const BASE_URL = 'http://192.168.0.29:3001';
+const BASE_URL = 'http://192.168.0.34:3001';
 
 type Breed = { 
   id: number; 
@@ -43,7 +45,9 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
 
   const [showForm, setShowForm] = useState(false);
   const [showRecognizer, setShowRecognizer] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
   const [editingPetId, setEditingPetId] = useState<number | null>(null);
+  const [selectedPetForQR, setSelectedPetForQR] = useState<any>(null);
 
   // Форма добавления/редактирования
   const [name, setName] = useState('');
@@ -63,20 +67,20 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
   const [selectedSpeciesForScanner, setSelectedSpeciesForScanner] = useState<'dog' | 'cat'>('dog');
 
   // Загрузка списка питомцев
-  useEffect(() => {
-    const loadPets = async () => {
-      if (!user) return;
-      setLoading(true);
-      try {
-        const data = await petsAPI.getPets(user.id);
-        setPets(data);
-      } catch (err: any) {
-        Alert.alert('Ошибка', err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const loadPets = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const data = await petsAPI.getPets(user.id);
+      setPets(data);
+    } catch (err: any) {
+      Alert.alert('Ошибка', err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     loadPets();
   }, [user]);
 
@@ -152,7 +156,7 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
     );
   };
 
-  // Обработчик распознанной породы (новый, с детальными данными)
+  // Обработчик распознанной породы
   const handleBreedDetected = (detectedBreed: string, breedData?: any) => {
     setBreedQuery(detectedBreed);
     setSelectedBreed(null);
@@ -226,8 +230,7 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
         );
         
         // Обновляем список питомцев
-        const updatedPets = await petsAPI.getPets(user!.id);
-        setPets(updatedPets);
+        await loadPets();
         
         Alert.alert('Успех', `Данные питомца ${name} обновлены!`);
       } else {
@@ -300,7 +303,7 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
           onPress: async () => {
             try {
               await petsAPI.deletePet(petId);
-              setPets(prev => prev.filter(p => p.id !== petId));
+              await loadPets();
               Alert.alert('Успех', 'Питомец удален');
             } catch (err: any) {
               Alert.alert('Ошибка', err.message);
@@ -629,6 +632,22 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
                   )}
                 </View>
               )}
+
+              {/* 🔍 Кнопка QR-кода */}
+              {/* 🔍 Кнопка QR-кода */}
+                <TouchableOpacity 
+                  style={styles.qrCodeButton}
+                  onPress={() => {
+                    if (pet && pet.id) {
+                      setSelectedPetForQR(pet);
+                      setShowQRModal(true);
+                    } else {
+                      Alert.alert('Ошибка', 'Данные питомца не найдены');
+                    }
+                  }}
+                >
+                  <Text style={styles.qrCodeButtonText}>🔍 Создать QR-код для поиска</Text>
+                </TouchableOpacity>
             </View>
           );
         })}
@@ -648,6 +667,14 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
           onBreedSelected={handleBreedDetected}
         />
       </Modal>
+
+      {/* Модальное окно для QR-кода */}
+      <PetQRCode
+        visible={showQRModal}
+        pet={selectedPetForQR}
+        onClose={() => setShowQRModal(false)}
+        onSave={loadPets}
+      />
 
       {/* Bottom Navigation */}
       <BottomNav 
@@ -921,6 +948,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     marginTop: 6,
+  },
+  // Кнопка QR-кода
+  qrCodeButton: {
+    backgroundColor: '#E8F0EC',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  qrCodeButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#2F4F4F',
   },
   modalOverlay: {
     flex: 1,

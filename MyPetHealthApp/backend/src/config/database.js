@@ -4,37 +4,28 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Создаем пул подключений к PostgreSQL
 const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
+  host: process.env.DB_HOST || 'localhost',
+  port: process.env.DB_PORT || 5432,
+  database: process.env.DB_NAME || 'pethealth',
+  user: process.env.DB_USER || 'pethealth_user',
+  password: process.env.DB_PASSWORD || 'secure_password123',
 });
 
-// Проверяем подключение при старте
-pool.on('connect', () => {
-  console.log('✅ Connected to PostgreSQL database');
-});
-
-pool.on('error', (err) => {
-  console.error('❌ Database connection error:', err);
-});
-
-// Функция для выполнения запросов
 export const query = (text, params) => pool.query(text, params);
+export const getClient = () => pool.connect();
 
-// Функция для проверки подключения
 export const testConnection = async () => {
   try {
-    const result = await query('SELECT NOW()');
-    console.log('📊 Database connection test successful:', result.rows[0]);
+    const client = await pool.connect();
+    console.log('✅ Connected to PostgreSQL database');
+    client.release();
     return true;
   } catch (error) {
-    console.error('❌ Database connection test failed:', error);
+    console.error('❌ Database connection error:', error.message);
     return false;
   }
 };
 
 export default pool;
+
