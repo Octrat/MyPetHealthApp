@@ -107,6 +107,7 @@ app.get('/', (req, res) => {
       vision: '/api/vision',
       assistant: '/api/assistant/ask',
       'assistant-pet': '/api/assistant/pet/:petId/ask',
+      'assistant-chats': '/api/assistant/chats',
       'vision-gemini': '/api/vision/gemini-recognize',
       'vision-quick': '/api/vision/quick-recognize',
       'public-pet': '/api/public/pet/:id',
@@ -217,13 +218,19 @@ ${pet.description ? `📝 Особенности: ${pet.description}` : ''}
   }
 });
 
+// ============================================
+// 💬 ЭНДПОИНТЫ ДЛЯ РАБОТЫ С ЧАТАМИ
+// ============================================
+
 // Получить все чаты пользователя
 app.get('/api/assistant/chats', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT * FROM assistant_chats 
-       WHERE user_id = $1 
-       ORDER BY updated_at DESC`,
+      `SELECT c.*, p.name as pet_name, p.species as pet_species
+       FROM assistant_chats c
+       LEFT JOIN pets p ON c.pet_id = p.id
+       WHERE c.user_id = $1
+       ORDER BY c.updated_at DESC`,
       [req.user.userId]
     );
     res.json(result.rows);
@@ -233,7 +240,43 @@ app.get('/api/assistant/chats', authenticateToken, async (req, res) => {
   }
 });
 
-// Сохранить сообщение в чат
+// Создать новый чат
+app.post('/api/assistant/chats', authenticateToken, async (req, res) => {
+  const { petId, title } = req.body;
+  try {
+    const result = await pool.query(
+      `INSERT INTO assistant_chats (user_id, pet_id, title, messages)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [req.user.userId, petId || null, title || 'Новый чат', '[]']
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Create chat error:', error);
+    res.status(500).json({ message: 'Ошибка создания чата' });
+  }
+});
+
+// Получить сообщения чата
+app.get('/api/assistant/chats/:chatId/messages', authenticateToken, async (req, res) => {
+  const { chatId } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT messages FROM assistant_chats 
+       WHERE id = $1 AND user_id = $2`,
+      [chatId, req.user.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Чат не найден' });
+    }
+    res.json({ messages: result.rows[0].messages });
+  } catch (error) {
+    console.error('Get messages error:', error);
+    res.status(500).json({ message: 'Ошибка получения сообщений' });
+  }
+});
+
+// Сохранить сообщения в чат
 app.post('/api/assistant/chats/:chatId/messages', authenticateToken, async (req, res) => {
   const { chatId } = req.params;
   const { messages } = req.body;
@@ -248,6 +291,40 @@ app.post('/api/assistant/chats/:chatId/messages', authenticateToken, async (req,
   } catch (error) {
     console.error('Save messages error:', error);
     res.status(500).json({ message: 'Ошибка сохранения' });
+  }
+});
+
+// Удалить чат
+app.delete('/api/assistant/chats/:chatId', authenticateToken, async (req, res) => {
+  const { chatId } = req.params;
+  try {
+    await pool.query(
+      `DELETE FROM assistant_chats WHERE id = $1 AND user_id = $2`,
+      [chatId, req.user.userId]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete chat error:', error);
+    res.status(500).json({ message: 'Ошибка удаления чата' });
+  }
+});
+
+// Обновить название чата
+app.patch('/api/assistant/chats/:chatId', authenticateToken, async (req, res) => {
+  const { chatId } = req.params;
+  const { title } = req.body;
+  try {
+    const result = await pool.query(
+      `UPDATE assistant_chats 
+       SET title = $1, updated_at = NOW() 
+       WHERE id = $2 AND user_id = $3
+       RETURNING *`,
+      [title, chatId, req.user.userId]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update chat error:', error);
+    res.status(500).json({ message: 'Ошибка обновления чата' });
   }
 });
 
@@ -481,6 +558,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🔗 Main page: http://127.0.0.1:${PORT}`);
   console.log(`🤖 AI Assistant: http://127.0.0.1:${PORT}/api/assistant/ask`);
   console.log(`🎯 AI Assistant for Pet: http://127.0.0.1:${PORT}/api/assistant/pet/:petId/ask`);
+  console.log(`💬 Assistant Chats: http://127.0.0.1:${PORT}/api/assistant/chats`);
   console.log(`🐕 Breed Recognition (Gemini): http://127.0.0.1:${PORT}/api/vision/gemini-recognize`);
   console.log(`⚡ Quick Breed Recognition: http://127.0.0.1:${PORT}/api/vision/quick-recognize`);
   console.log(`👁️ Legacy Vision API: http://127.0.0.1:${PORT}/api/vision/test`);
