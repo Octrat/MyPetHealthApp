@@ -24,7 +24,7 @@ import BreedRecognizer from './BreedRecognizer';
 import PetQRCode from './PetQRCode';
 import BottomNav from './BottomNav';
 
-const BASE_URL = 'http://192.168.0.34:3001';
+const BASE_URL = 'http://192.168.0.29:3001';
 
 type Breed = { 
   id: number; 

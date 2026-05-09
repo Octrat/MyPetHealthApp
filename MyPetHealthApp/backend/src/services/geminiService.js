@@ -2,65 +2,88 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
 
-dotenv.config({ path: '../../.env' });
+dotenv.config();
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+// ВОЗВРАЩАЕМСЯ К ПРОВЕРЕННОЙ МОДЕЛИ
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-const SYSTEM_PROMPT = `Ты — Доктор Хвост, дружелюбный и заботливый ветеринарный помощник.
+console.log('🔧 Gemini Service initialized');
 
-Твоя задача — помогать владельцам кошек и собак с вопросами о здоровье, уходе, питании, воспитании.
-Отвечай максимально по делу. Дай конкретные советы.
-Всегда предупреждай: "При серьезных симптомах обратитесь к ветеринару".`;
-
-export async function askGemini(question, history = []) {
+/**
+ * Ассистент с контекстом питомца
+ */
+export async function askGeminiWithContext(question, petContext, history = []) {
   try {
-    const contents = [];
-    
-    for (const msg of history) {
-      contents.push({
-        role: msg.isUser ? 'user' : 'model',
-        parts: [{ text: msg.text }]
-      });
+    if (!GEMINI_API_KEY || GEMINI_API_KEY.length < 10) {
+      console.error('❌ API ключ не настроен');
+      return '😞 Извините, API ключ не настроен. Пожалуйста, сообщите разработчику.';
     }
-    
-    contents.push({
-      role: 'user',
-      parts: [{ text: question }]
-    });
+
+    const fullPrompt = `${petContext}
+
+Ты — Доктор Хвост, опытный ветеринар. Ответь на вопрос пользователя.
+
+Вопрос: ${question}
+
+Дай максимально подробный ответ, не менее 10-15 предложений.
+Включи в ответ анализ данных питомца, сравнение с нормой, конкретные рекомендации.
+Будь дружелюбным, используй эмодзи.`;
+
+    console.log('📝 Отправляем запрос в Gemini...');
     
     const response = await axios.post(GEMINI_URL, {
-      contents: contents,
+      contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
       generationConfig: {
-        maxOutputTokens: 2048,  // Максимально возможный лимит
-        temperature: 0.5,
+        maxOutputTokens: 4096,
+        temperature: 0.9,
       }
     }, {
-      timeout: 60000,  // Увеличил таймаут до 60 секунд
-      headers: {
-        'Content-Type': 'application/json',
-      }
+      timeout: 60000,
+      headers: { 'Content-Type': 'application/json' }
     });
 
-    if (response.data && response.data.candidates && response.data.candidates[0]) {
-      let answer = response.data.candidates[0].content.parts[0].text;
-      
-      // Если ответ всё ещё обрезан, добавляем примечание
-      if (response.data.candidates[0].finishReason === 'MAX_TOKENS') {
-        answer += '\n\n📝 *Продолжение в следующем сообщении*';
-      }
-      
+    if (response.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+      const answer = response.data.candidates[0].content.parts[0].text;
+      console.log('✅ Получен ответ, длина:', answer.length);
       return answer;
-    } else {
-      return '😞 Не удалось получить ответ. Попробуйте еще раз.';
     }
+    
+    console.error('❌ Пустой ответ');
+    return '😞 Не удалось получить ответ. Попробуйте еще раз.';
+    
   } catch (error) {
-    console.error('Ошибка Gemini:', error.message);
-    
-    if (error.response?.status === 429) {
-      return '😅 Доктор Хвост очень популярен! Лимит вопросов временно исчерпан. Попробуйте через несколько минут. 🐾';
-    }
-    
+    console.error('❌ Ошибка Gemini with context:', error.message);
     return '😞 Извините, сейчас не могу ответить. Попробуйте позже.';
   }
 }
+
+export async function askGemini(question, history = []) {
+  try {
+    if (!GEMINI_API_KEY || GEMINI_API_KEY.length < 10) {
+      return '😞 Извините, API ключ не настроен.';
+    }
+
+    const response = await axios.post(GEMINI_URL, {
+      contents: [{ role: 'user', parts: [{ text: question }] }],
+      generationConfig: {
+        maxOutputTokens: 4096,
+        temperature: 0.9,
+      }
+    }, {
+      timeout: 60000,
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    if (response.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+      return response.data.candidates[0].content.parts[0].text;
+    }
+    return '😞 Не удалось получить ответ.';
+    
+  } catch (error) {
+    console.error('❌ Ошибка Gemini:', error.message);
+    return '😞 Извините, сейчас не могу ответить. Попробуйте позже.';
+  }
+}
+
+export default { askGemini, askGeminiWithContext };

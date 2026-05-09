@@ -1,5 +1,5 @@
-// components/PetAssistant.tsx
-import React, { useState, useRef } from 'react';
+// components/PetAssistant.tsx (обновлённая версия)
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,10 +10,14 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import AssistantSelector from './AssistantSelector';
+import { Pet } from '../src/types';
+import { useAuth } from '../src/hooks/AuthContext';
 
-const BASE_URL = 'http://192.168.0.34:3001';
+const BASE_URL = 'http://192.168.0.29:3001';
 
 interface Message {
   id: string;
@@ -22,26 +26,42 @@ interface Message {
   timestamp: Date;
 }
 
-// Быстрые вопросы для подсказки
+interface PetAssistantProps {
+  pets: Pet[];
+  onRefresh?: () => void;
+}
+
 const QUICK_QUESTIONS = [
-  'Чем кормить щенка? 🐶',
-  'Как понять, что кошка больна? 🐱',
-  'Как часто мыть собаку? 🛁',
-  'Что делать при отравлении? ⚠️',
+  'Чем кормить? 🍖',
+  'Как понять, что болен? 🤒',
+  'Советы по уходу 🛁',
+  'Норма веса? ⚖️',
 ];
 
-export default function PetAssistant() {
+export default function PetAssistant({ pets, onRefresh }: PetAssistantProps) {
+  const { user } = useAuth();
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: '🐾 Привет! Я Доктор Хвост!\n\nЗадайте мне любой вопрос о здоровье, уходе или воспитании вашего питомца. Я постараюсь помочь!',
+      text: '🐾 Привет! Я Доктор Хвост!\n\nВыберите ассистента сверху и задайте вопрос о здоровье, уходе или воспитании питомца.',
       isUser: false,
       timestamp: new Date(),
     },
   ]);
   const [loading, setLoading] = useState(false);
+  const [selectedAssistant, setSelectedAssistant] = useState<'general' | number>('general');
+  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+
+  // Загрузка истории чата
+  useEffect(() => {
+    loadChatHistory();
+  }, [selectedAssistant]);
+
+  const loadChatHistory = async () => {
+    // Здесь можно загрузить сохранённые сообщения из БД
+  };
 
   const sendQuestion = async (text?: string) => {
     const questionText = text || question;
@@ -59,19 +79,21 @@ export default function PetAssistant() {
     setLoading(true);
 
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-    
+
     try {
       const token = await AsyncStorage.getItem('userToken');
       
-      // 🔥 ДОБАВЛЯЕМ ИСТОРИЮ СООБЩЕНИЙ 🔥
-      // Берем последние 6 сообщений для контекста (исключая только что добавленное)
-      const historyMessages = messages.slice(-6);
-      const history = historyMessages.map(msg => ({
+      const history = messages.slice(-6).map(msg => ({
         text: msg.text,
         isUser: msg.isUser
       }));
       
-      const response = await fetch(`${BASE_URL}/api/assistant/ask`, {
+      let endpoint = `${BASE_URL}/api/assistant/ask`;
+      if (selectedAssistant !== 'general') {
+        endpoint = `${BASE_URL}/api/assistant/pet/${selectedAssistant}/ask`;
+      }
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -79,7 +101,7 @@ export default function PetAssistant() {
         },
         body: JSON.stringify({ 
           question: questionText,
-          history: history  // ← ОТПРАВЛЯЕМ ИСТОРИЮ НА СЕРВЕР
+          history: history
         }),
       });
 
@@ -87,13 +109,17 @@ export default function PetAssistant() {
       
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: data.answer || '😞 Извините, не могу ответить сейчас. Попробуйте переформулировать вопрос.',
+        text: data.answer || '😞 Извините, не могу ответить сейчас.',
         isUser: false,
         timestamp: new Date(),
       };
       
       setMessages(prev => [...prev, aiMessage]);
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+      
+      if (data.petInfo) {
+        onRefresh?.();
+      }
     } catch (error) {
       console.error('Ошибка:', error);
       const errorMessage: Message = {
@@ -109,14 +135,28 @@ export default function PetAssistant() {
   };
 
   const clearChat = () => {
+    const selectedPet = selectedAssistant !== 'general' 
+      ? pets.find(p => p.id === selectedAssistant) 
+      : null;
+    
     setMessages([
       {
         id: '1',
-        text: '🐾 Привет! Я Доктор Хвост!\n\nЗадайте мне любой вопрос о здоровье, уходе или воспитании вашего питомца. Я постараюсь помочь!',
+        text: selectedPet 
+          ? `🐾 Привет! Я Доктор Хвост!\n\nТеперь я знаю всё о ${selectedPet.name}. Задайте вопрос о его здоровье, питании или уходе!`
+          : '🐾 Привет! Я Доктор Хвост!\n\nВыберите ассистента сверху и задайте вопрос о здоровье, уходе или воспитании питомца.',
         isUser: false,
         timestamp: new Date(),
       },
     ]);
+  };
+
+  const getAssistantTitle = () => {
+    if (selectedAssistant === 'general') {
+      return '🩺 Доктор Хвост (Общий)';
+    }
+    const pet = pets.find(p => p.id === selectedAssistant);
+    return pet ? `🩺 Доктор Хвост • ${pet.name}` : '🩺 Доктор Хвост';
   };
 
   return (
@@ -129,14 +169,27 @@ export default function PetAssistant() {
         <View style={styles.headerLeft}>
           <Text style={styles.headerIcon}>🩺</Text>
           <View>
-            <Text style={styles.headerTitle}>Доктор Хвост</Text>
-            <Text style={styles.headerSubtitle}>Ваш ветеринарный помощник</Text>
+            <Text style={styles.headerTitle}>{getAssistantTitle()}</Text>
+            <Text style={styles.headerSubtitle}>
+              {selectedAssistant !== 'general' 
+                ? 'Персональный помощник для вашего питомца'
+                : 'Универсальный ветеринарный помощник'}
+            </Text>
           </View>
         </View>
         <TouchableOpacity onPress={clearChat} style={styles.clearButton}>
           <Text style={styles.clearButtonText}>🗑️</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Селектор ассистента */}
+      {pets.length > 0 && (
+        <AssistantSelector
+          pets={pets}
+          selectedAssistant={selectedAssistant}
+          onSelect={setSelectedAssistant}
+        />
+      )}
 
       <ScrollView 
         ref={scrollViewRef}
@@ -172,7 +225,7 @@ export default function PetAssistant() {
         )}
       </ScrollView>
 
-      {/* Быстрые вопросы */}
+      {/* Быстрые вопросы показываем только если мало сообщений */}
       {messages.length < 3 && (
         <ScrollView 
           horizontal 
@@ -280,9 +333,6 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     borderBottomLeftRadius: 4,
     elevation: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
   },
   messageText: {
     fontSize: 14,

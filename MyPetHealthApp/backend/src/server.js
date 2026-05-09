@@ -21,7 +21,7 @@ import { testConnection } from './config/database.js';
 import pool from './config/database.js';
 
 // ИМПОРТЫ ДЛЯ AI АССИСТЕНТА И РАСПОЗНАВАНИЯ ПОРОД
-import { askGemini } from './services/geminiService.js';
+import { askGemini, askGeminiWithContext } from './services/geminiService.js';
 import { recognizeBreedWithGemini, quickBreedRecognize } from './services/geminiVisionService.js';
 
 dotenv.config();
@@ -106,6 +106,7 @@ app.get('/', (req, res) => {
       pets: '/api/pets',
       vision: '/api/vision',
       assistant: '/api/assistant/ask',
+      'assistant-pet': '/api/assistant/pet/:petId/ask',
       'vision-gemini': '/api/vision/gemini-recognize',
       'vision-quick': '/api/vision/quick-recognize',
       'public-pet': '/api/public/pet/:id',
@@ -126,8 +127,10 @@ app.get('/health', async (req, res) => {
 });
 
 // ============================================
-// 🤖 ЭНДПОИНТ ДЛЯ AI АССИСТЕНТА (Доктор Хвост)
+// 🤖 ЭНДПОИНТЫ ДЛЯ AI АССИСТЕНТА
 // ============================================
+
+// Общий ассистент (без контекста питомца)
 app.post('/api/assistant/ask', authenticateToken, async (req, res) => {
   const { question, history } = req.body;
   
@@ -141,6 +144,110 @@ app.post('/api/assistant/ask', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Ошибка в /api/assistant/ask:', error);
     res.status(500).json({ message: 'Ошибка получения ответа' });
+  }
+});
+
+// Ассистент для конкретного питомца (с контекстом)
+app.post('/api/assistant/pet/:petId/ask', authenticateToken, async (req, res) => {
+  const { petId } = req.params;
+  const { question, history } = req.body;
+  
+  console.log('\n🐾 ========== AI ЗАПРОС ДЛЯ ПИТОМЦА ==========');
+  console.log('📌 petId:', petId);
+  console.log('❓ Вопрос:', question);
+  console.log('👤 userId:', req.user?.userId);
+  
+  if (!question || question.trim().length === 0) {
+    return res.status(400).json({ message: 'Напишите ваш вопрос' });
+  }
+  
+  try {
+    // Получаем информацию о питомце
+    const petResult = await pool.query(
+      `SELECT p.*, 
+              b.name as breed_name, 
+              b.size_category as breed_size,
+              b.name_ru as breed_name_ru
+       FROM pets p
+       LEFT JOIN breeds b ON p.breed_id = b.id
+       WHERE p.id = $1 AND p.user_id = $2`,
+      [petId, req.user.userId]
+    );
+    
+    if (petResult.rows.length === 0) {
+      console.log('❌ Питомец не найден!');
+      return res.status(404).json({ message: 'Питомец не найден' });
+    }
+    
+    const pet = petResult.rows[0];
+    console.log('🐕 Найден питомец:', pet.name, 'вид:', pet.species);
+    console.log('📊 Вес:', pet.weight, 'Возраст:', pet.age, 'Порода:', pet.breed_name);
+    
+    // Создаём подробный контекст питомца
+    const petContext = `
+📋 ИНФОРМАЦИЯ О ПИТОМЦЕ:
+
+🐱 Имя: ${pet.name}
+📏 Вид: ${pet.species === 'dog' ? 'Собака 🐶' : 'Кошка 🐱'}
+🎀 Порода: ${pet.breed_name || 'Не указана'} ${pet.breed_name_ru ? `(${pet.breed_name_ru})` : ''}
+🎂 Возраст: ${pet.age || 'Не указан'} лет
+⚖️ Вес: ${pet.weight || 'Не указан'} кг
+📐 Рост: ${pet.height || 'Не указан'} см
+🚻 Пол: ${pet.sex === 'male' ? 'Мужской ♂' : 'Женский ♀'}
+💊 Стерилизован(а): ${pet.neutered ? 'Да ✅' : 'Нет ❌'}
+${pet.description ? `📝 Особенности: ${pet.description}` : ''}
+
+⚠️ ВАЖНО: Это реальные данные питомца. Отвечай, ОБЯЗАТЕЛЬНО учитывая их!`;
+    
+    console.log('📋 Контекст питомца создан, длина:', petContext.length);
+    
+    const answer = await askGeminiWithContext(question, petContext, history || []);
+    console.log('💬 Ответ ассистента:', answer?.substring(0, 300));
+    console.log('=====================================\n');
+    
+    res.json({ answer, petInfo: {
+      id: pet.id,
+      name: pet.name,
+      species: pet.species,
+      breed: pet.breed_name
+    } });
+  } catch (error) {
+    console.error('Ошибка в /api/assistant/pet/:petId/ask:', error);
+    res.status(500).json({ message: 'Ошибка получения ответа' });
+  }
+});
+
+// Получить все чаты пользователя
+app.get('/api/assistant/chats', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM assistant_chats 
+       WHERE user_id = $1 
+       ORDER BY updated_at DESC`,
+      [req.user.userId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get chats error:', error);
+    res.status(500).json({ message: 'Ошибка получения чатов' });
+  }
+});
+
+// Сохранить сообщение в чат
+app.post('/api/assistant/chats/:chatId/messages', authenticateToken, async (req, res) => {
+  const { chatId } = req.params;
+  const { messages } = req.body;
+  try {
+    await pool.query(
+      `UPDATE assistant_chats 
+       SET messages = $1, updated_at = NOW() 
+       WHERE id = $2 AND user_id = $3`,
+      [JSON.stringify(messages), chatId, req.user.userId]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Save messages error:', error);
+    res.status(500).json({ message: 'Ошибка сохранения' });
   }
 });
 
@@ -283,7 +390,7 @@ app.post('/api/report-location', async (req, res) => {
       try {
         const mailOptions = {
           from: `"${process.env.EMAIL_FROM_NAME || 'HealthyPaws'}" <${process.env.EMAIL_FROM_ADDRESS || 'noreply@healthypaws.com'}>`,
-          to: owner.email,  // Email из базы данных
+          to: owner.email,
           subject: `📍 ВАЖНО: Ваш питомец ${owner.pet_name} был найден!`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -373,6 +480,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🔗 Health check: http://0.0.0.0:${PORT}/health`);
   console.log(`🔗 Main page: http://127.0.0.1:${PORT}`);
   console.log(`🤖 AI Assistant: http://127.0.0.1:${PORT}/api/assistant/ask`);
+  console.log(`🎯 AI Assistant for Pet: http://127.0.0.1:${PORT}/api/assistant/pet/:petId/ask`);
   console.log(`🐕 Breed Recognition (Gemini): http://127.0.0.1:${PORT}/api/vision/gemini-recognize`);
   console.log(`⚡ Quick Breed Recognition: http://127.0.0.1:${PORT}/api/vision/quick-recognize`);
   console.log(`👁️ Legacy Vision API: http://127.0.0.1:${PORT}/api/vision/test`);

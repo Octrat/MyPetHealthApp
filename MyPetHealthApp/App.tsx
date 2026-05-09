@@ -20,22 +20,35 @@ import RegisterScreen from './components/RegisterScreen';
 import ProfileScreen from './components/ProfileScreen';
 import PetMedicationsScreen from './components/PetMedicationsScreen';
 import PetAssistant from './components/PetAssistant';
-import BottomNav from './components/BottomNav'; // Добавляем импорт BottomNav
-import AdminPanel from './components/admin/AdminPanel'; // ← добавляем админ-панель
-
+import BottomNav from './components/BottomNav';
+import AdminPanel from './components/admin/AdminPanel';
 
 import { AuthProvider, useAuth } from './src/hooks/AuthContext';
 import { petsAPI } from './src/services/api';
 import { Pet } from './src/types';
 import { AppScreen } from './src/types/navigation';
 
-const BASE_URL = 'http://192.168.0.34:3001';
+const BASE_URL = 'http://192.168.0.29:3001';
 
 function MainApp() {
   const [appState, setAppState] = useState<AppScreen>('splash');
   const { user, logout, isLoading } = useAuth();
   const [pets, setPets] = useState<Pet[]>([]);
   const [loadingPets, setLoadingPets] = useState(false);
+
+  // Функция загрузки питомцев
+  const loadPets = async () => {
+    if (!user) return;
+    setLoadingPets(true);
+    try {
+      const data = await petsAPI.getPets(user.id);
+      setPets(data);
+    } catch (err) {
+      console.log('Ошибка загрузки питомцев', err);
+    } finally {
+      setLoadingPets(false);
+    }
+  };
 
   useEffect(() => {
     if (appState === 'splash') {
@@ -44,24 +57,7 @@ function MainApp() {
     }
   }, [appState, user]);
 
-  // Удаляем автоматическое перенаправление, теперь оно через onLoginSuccess
-  // useEffect(() => {
-  //   if (user && appState === 'login') setAppState('main');
-  // }, [user, appState]);
-
   useEffect(() => {
-    const loadPets = async () => {
-      if (!user) return;
-      setLoadingPets(true);
-      try {
-        const data = await petsAPI.getPets(user.id);
-        setPets(data);
-      } catch (err) {
-        console.log('Ошибка загрузки питомцев', err);
-      } finally {
-        setLoadingPets(false);
-      }
-    };
     if (appState === 'main') loadPets();
   }, [appState, user]);
 
@@ -178,7 +174,10 @@ function MainApp() {
         )}
 
         {/* 🤖 AI ПОМОЩНИК */}
-        <PetAssistant />
+        <PetAssistant 
+          pets={pets}
+          onRefresh={loadPets}
+        />
 
       </ScrollView>
 
@@ -215,7 +214,7 @@ const styles = StyleSheet.create({
 
   title: { fontSize: 22, fontWeight: '700', color: '#2F4F4F' },
 
-  content: { padding: 16, paddingBottom: 100 }, // Уменьшил отступ, так как BottomNav теперь внутри
+  content: { padding: 16, paddingBottom: 100 },
 
   welcomeCard: {
     backgroundColor: '#FFFFFF',
@@ -225,7 +224,6 @@ const styles = StyleSheet.create({
   },
 
   welcomeTitle: { fontSize: 20, fontWeight: '700', color: '#2F4F4F' },
-
   welcomeText: { fontSize: 16, color: '#7A8F88' },
 
   addPetButton: {
@@ -235,7 +233,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-
   addPetButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
 
   statsCard: {
