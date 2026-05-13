@@ -9,7 +9,8 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
-  Alert
+  ImageBackground,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AddPetScreen from './components/AddPetScreen';
@@ -28,7 +29,12 @@ import { petsAPI } from './src/services/api';
 import { Pet } from './src/types';
 import { AppScreen } from './src/types/navigation';
 
-const BASE_URL = 'http://192.168.0.29:3001';
+const BASE_URL = 'http://192.168.0.59:3001';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const mainBg = require('./assets/images/ФонГлав.png');
+const appLogo = require('./assets/images/Логотип.png');
 
 interface Chat {
   id: number;
@@ -46,21 +52,18 @@ function MainApp() {
   const { user, logout, isLoading } = useAuth();
   const [pets, setPets] = useState<Pet[]>([]);
   const [loadingPets, setLoadingPets] = useState(false);
-  
-  // Состояния для чата
+
   const [currentChatId, setCurrentChatId] = useState<number | null>(null);
   const [currentPetId, setCurrentPetId] = useState<number | null>(null);
   const [currentChatTitle, setCurrentChatTitle] = useState('Доктор Хвост');
   const [chats, setChats] = useState<Chat[]>([]);
   const [isLoadingChat, setIsLoadingChat] = useState(false);
 
-  const isActive = (screen: AppScreen) => {
-    return appState === screen;
-  };
-
   const loadPets = async () => {
     if (!user) return;
+
     setLoadingPets(true);
+
     try {
       const data = await petsAPI.getPets(user.id);
       setPets(data);
@@ -71,14 +74,18 @@ function MainApp() {
     }
   };
 
-  // Загрузка списка чатов
   const loadChats = async (): Promise<Chat[]> => {
     if (!user) return [];
+
     try {
       const token = await AsyncStorage.getItem('userToken');
+
       const response = await fetch(`${BASE_URL}/api/assistant/chats`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
+
       const data = await response.json();
       return data;
     } catch (error) {
@@ -87,19 +94,26 @@ function MainApp() {
     }
   };
 
-  // Создание чата для питомца
-  const createChatForPet = async (petId: number, petName: string): Promise<Chat | null> => {
+  const createChatForPet = async (
+    petId: number,
+    petName: string
+  ): Promise<Chat | null> => {
     try {
       const token = await AsyncStorage.getItem('userToken');
       const title = `Чат с ${petName}`;
+
       const response = await fetch(`${BASE_URL}/api/assistant/chats`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ petId, title }),
+        body: JSON.stringify({
+          petId,
+          title,
+        }),
       });
+
       const newChat = await response.json();
       return newChat;
     } catch (error) {
@@ -108,18 +122,22 @@ function MainApp() {
     }
   };
 
-  // Создание общего чата
   const createGeneralChat = async (): Promise<Chat | null> => {
     try {
       const token = await AsyncStorage.getItem('userToken');
+
       const response = await fetch(`${BASE_URL}/api/assistant/chats`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ petId: null, title: 'Общий диалог' }),
+        body: JSON.stringify({
+          petId: null,
+          title: 'Общий диалог',
+        }),
       });
+
       const newChat = await response.json();
       return newChat;
     } catch (error) {
@@ -128,20 +146,21 @@ function MainApp() {
     }
   };
 
-  // Переключение на общий чат
   const switchToGeneralChat = async () => {
     setIsLoadingChat(true);
+
     try {
       let generalChat = chats.find((c: Chat) => !c.pet_id);
-      
+
       if (!generalChat) {
         const newChat = await createGeneralChat();
+
         if (newChat) {
           generalChat = newChat;
           setChats((prev: Chat[]) => [...prev, newChat]);
         }
       }
-      
+
       if (generalChat) {
         setCurrentChatId(generalChat.id);
         setCurrentPetId(null);
@@ -154,20 +173,21 @@ function MainApp() {
     }
   };
 
-  // Переключение на чат питомца
   const switchToPetChat = async (pet: Pet) => {
     setIsLoadingChat(true);
+
     try {
       let petChat = chats.find((c: Chat) => c.pet_id === pet.id);
-      
+
       if (!petChat) {
         const newChat = await createChatForPet(pet.id, pet.name);
+
         if (newChat) {
           petChat = newChat;
           setChats((prev: Chat[]) => [...prev, newChat]);
         }
       }
-      
+
       if (petChat) {
         setCurrentChatId(petChat.id);
         setCurrentPetId(pet.id);
@@ -180,34 +200,41 @@ function MainApp() {
     }
   };
 
-  // Инициализация чатов при загрузке
   const initializeChats = async () => {
     setIsLoadingChat(true);
+
     try {
       let loadedChats = await loadChats();
-      if (!loadedChats) loadedChats = [];
-      
+
+      if (!loadedChats) {
+        loadedChats = [];
+      }
+
       let generalChat = loadedChats.find((c: Chat) => !c.pet_id);
+
       if (!generalChat) {
         const newGeneralChat = await createGeneralChat();
+
         if (newGeneralChat) {
           generalChat = newGeneralChat;
           loadedChats.push(newGeneralChat);
         }
       }
-      
+
       for (const pet of pets) {
         const hasChat = loadedChats.some((c: Chat) => c.pet_id === pet.id);
+
         if (!hasChat) {
           const newChat = await createChatForPet(pet.id, pet.name);
+
           if (newChat) {
             loadedChats.push(newChat);
           }
         }
       }
-      
+
       setChats(loadedChats);
-      
+
       if (generalChat && !currentChatId) {
         setCurrentChatId(generalChat.id);
         setCurrentPetId(null);
@@ -222,7 +249,10 @@ function MainApp() {
 
   useEffect(() => {
     if (appState === 'splash') {
-      const timer = setTimeout(() => setAppState(user ? 'main' : 'login'), 2000);
+      const timer = setTimeout(() => {
+        setAppState(user ? 'main' : 'login');
+      }, 2000);
+
       return () => clearTimeout(timer);
     }
   }, [appState, user]);
@@ -239,11 +269,13 @@ function MainApp() {
     }
   }, [pets, user, appState]);
 
-  if (isLoading || appState === 'splash') return <SplashScreen />;
-  
+  if (isLoading || appState === 'splash') {
+    return <SplashScreen />;
+  }
+
   if (appState === 'login') {
     return (
-      <LoginScreen 
+      <LoginScreen
         onSwitchToRegister={() => setAppState('register')}
         onLoginSuccess={(userRole) => {
           if (userRole === 'admin') {
@@ -255,24 +287,26 @@ function MainApp() {
       />
     );
   }
-  
-  if (appState === 'register')
+
+  if (appState === 'register') {
     return (
-      <RegisterScreen 
-        onRegister={() => setAppState('main')} 
-        onSwitchToLogin={() => setAppState('login')} 
+      <RegisterScreen
+        onRegister={() => setAppState('main')}
+        onSwitchToLogin={() => setAppState('login')}
       />
     );
-  
-  if (appState === 'addPet') 
+  }
+
+  if (appState === 'addPet') {
     return (
-      <AddPetScreen 
+      <AddPetScreen
         onBack={() => setAppState('main')}
         onNavigate={(screen: AppScreen) => setAppState(screen)}
       />
     );
-  
-  if (appState === 'profile')
+  }
+
+  if (appState === 'profile') {
     return (
       <ProfileScreen
         onBack={() => setAppState('main')}
@@ -283,8 +317,9 @@ function MainApp() {
         onNavigate={(screen: AppScreen) => setAppState(screen)}
       />
     );
-  
-  if (appState === 'medications')
+  }
+
+  if (appState === 'medications') {
     return (
       <PetMedicationsScreen
         onBack={() => setAppState('main')}
@@ -292,155 +327,246 @@ function MainApp() {
         onNavigate={(screen: AppScreen) => setAppState(screen)}
       />
     );
-  
-    if (appState === 'admin-panel') {
-      return (
-        <AdminPanel
-          onNavigate={(screen) => {
-            if (screen === 'main') {
-              setAppState('main');
-            } else {
-              setAppState(screen as AppScreen);
-            }
-          }}
-          onLogout={async () => {
-            await logout();
-            setAppState('login');
-          }}
-        />
-      );
-    }
+  }
 
-  // Главный экран с чатом и переключателем питомцев
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F6F9F7" />
-
-      <View style={styles.header}>
-        <Text style={styles.title}>🐾 HealthyPaws</Text>
-      </View>
-
-      {/* Переключатель питомцев */}
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        style={styles.petSelector}
-        contentContainerStyle={styles.petSelectorContent}
-      >
-        <TouchableOpacity
-          style={[
-            styles.petChip,
-            !currentPetId && styles.petChipActive
-          ]}
-          onPress={switchToGeneralChat}
-          disabled={isLoadingChat}
-        >
-          <Text style={styles.petChipIcon}>🩺</Text>
-          <Text style={[
-            styles.petChipText,
-            !currentPetId && styles.petChipTextActive
-          ]}>Общий диалог</Text>
-        </TouchableOpacity>
-
-        {pets.map(pet => (
-          <TouchableOpacity
-            key={pet.id}
-            style={[
-              styles.petChip,
-              currentPetId === pet.id && styles.petChipActive
-            ]}
-            onPress={() => switchToPetChat(pet)}
-            disabled={isLoadingChat}
-          >
-            <Text style={styles.petChipIcon}>
-              {pet.species === 'dog' ? '🐶' : '🐱'}
-            </Text>
-            <Text style={[
-              styles.petChipText,
-              currentPetId === pet.id && styles.petChipTextActive
-            ]}>
-              {pet.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Чат */}
-      <View style={styles.chatContainer}>
-        {isLoadingChat ? (
-          <View style={styles.loadingChat}>
-            <ActivityIndicator size="large" color="#7BC9A8" />
-            <Text style={styles.loadingChatText}>Загрузка диалога...</Text>
-          </View>
-        ) : currentChatId ? (
-          <PetAssistant
-            key={currentChatId}
-            currentChatId={currentChatId}
-            currentPetId={currentPetId}
-            chatTitle={currentChatTitle}
-            onBack={() => {}}
-            onMessagesLoaded={() => {}}
-          />
-        ) : (
-          <View style={styles.loadingChat}>
-            <ActivityIndicator size="large" color="#7BC9A8" />
-            <Text style={styles.loadingChatText}>Загрузка...</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Статистика питомцев */}
-      {!loadingPets && pets.length > 0 && (
-        <View style={styles.statsCard}>
-          <Text style={styles.statsTitle}>📊 Ваши питомцы</Text>
-          <Text style={styles.statsCount}>
-            {pets.length} {pets.length === 1 ? 'питомец' : pets.length < 5 ? 'питомца' : 'питомцев'}
-          </Text>
-          <View style={styles.statsRow}>
-            <View style={styles.statBadge}>
-              <Text style={styles.statBadgeIcon}>🐶</Text>
-              <Text style={styles.statBadgeText}>
-                {pets.filter(p => p.species === 'dog').length} собак
-              </Text>
-            </View>
-            <View style={styles.statBadge}>
-              <Text style={styles.statBadgeIcon}>🐱</Text>
-              <Text style={styles.statBadgeText}>
-                {pets.filter(p => p.species === 'cat').length} кошек
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity 
-            style={styles.viewPetsButton}
-            onPress={() => setAppState('addPet')}
-          >
-            <Text style={styles.viewPetsButtonText}>Управление питомцами →</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {!loadingPets && pets.length === 0 && (
-        <View style={styles.emptyStateCard}>
-          <Text style={styles.emptyStateEmoji}>🐕‍🦺</Text>
-          <Text style={styles.emptyStateTitle}>Нет питомцев</Text>
-          <Text style={styles.emptyStateText}>
-            Добавьте своего первого питомца, чтобы получать персональные рекомендации
-          </Text>
-          <TouchableOpacity 
-            style={styles.addPetButton}
-            onPress={() => setAppState('addPet')}
-          >
-            <Text style={styles.addPetButtonText}>➕ Добавить питомца</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Нижняя навигация */}
-      <BottomNav 
-        currentScreen="main" 
-        onNavigate={(screen: AppScreen) => setAppState(screen)} 
+  if (appState === 'admin-panel') {
+    return (
+      <AdminPanel
+        onNavigate={(screen) => {
+          if (screen === 'main') {
+            setAppState('main');
+          } else {
+            setAppState(screen as AppScreen);
+          }
+        }}
+        onLogout={async () => {
+          await logout();
+          setAppState('login');
+        }}
       />
-    </SafeAreaView>
+    );
+  }
+
+  return (
+    <ImageBackground
+      source={mainBg}
+      style={styles.background}
+      resizeMode="cover"
+    >
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor="transparent"
+          translucent
+        />
+
+        <ScrollView
+          style={styles.mainScroll}
+          contentContainerStyle={styles.mainScrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.screenContent}>
+            <View style={styles.header}>
+              <Text style={styles.title}>HealthyPaws</Text>
+
+              <View style={styles.subtitleBadge}>
+                <Text style={styles.subtitle}>Забота о здоровье питомца</Text>
+              </View>
+            </View>
+
+            <View style={styles.petSelectorWrapper}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.petSelector}
+                contentContainerStyle={styles.petSelectorContent}
+                nestedScrollEnabled
+                bounces={false}
+                overScrollMode="never"
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.petChip,
+                    !currentPetId && styles.petChipActive,
+                  ]}
+                  onPress={switchToGeneralChat}
+                  disabled={isLoadingChat}
+                  activeOpacity={0.85}
+                >
+                  <View
+                    style={[
+                      styles.petChipIconCircle,
+                      !currentPetId && styles.petChipIconCircleActive,
+                    ]}
+                  >
+                    <Text style={styles.petChipIcon}>🩺</Text>
+                  </View>
+
+                  <Text
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                    style={[
+                      styles.petChipText,
+                      !currentPetId && styles.petChipTextActive,
+                    ]}
+                  >
+                    Общий
+                  </Text>
+                </TouchableOpacity>
+
+                {pets.map((pet) => (
+                  <TouchableOpacity
+                    key={pet.id}
+                    style={[
+                      styles.petChip,
+                      currentPetId === pet.id && styles.petChipActive,
+                    ]}
+                    onPress={() => switchToPetChat(pet)}
+                    disabled={isLoadingChat}
+                    activeOpacity={0.85}
+                  >
+                    <View
+                      style={[
+                        styles.petChipIconCircle,
+                        currentPetId === pet.id &&
+                          styles.petChipIconCircleActive,
+                      ]}
+                    >
+                      <Text style={styles.petChipIcon}>
+                        {pet.species === 'dog' ? '🐶' : '🐱'}
+                      </Text>
+                    </View>
+
+                    <Text
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                      style={[
+                        styles.petChipText,
+                        currentPetId === pet.id && styles.petChipTextActive,
+                      ]}
+                    >
+                      {pet.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            <View style={styles.chatContainer}>
+              {isLoadingChat ? (
+                <View style={styles.loadingChat}>
+                  <ActivityIndicator size="large" color="#123F32" />
+                  <Text style={styles.loadingChatText}>Загрузка диалога...</Text>
+                </View>
+              ) : currentChatId ? (
+                <PetAssistant
+                  key={currentChatId}
+                  currentChatId={currentChatId}
+                  currentPetId={currentPetId}
+                  chatTitle={currentChatTitle}
+                  onBack={() => {}}
+                  onMessagesLoaded={() => {}}
+                />
+              ) : (
+                <View style={styles.loadingChat}>
+                  <ActivityIndicator size="large" color="#123F32" />
+                  <Text style={styles.loadingChatText}>Загрузка...</Text>
+                </View>
+              )}
+            </View>
+
+            {!loadingPets && pets.length > 0 && (
+              <View style={styles.statsCard}>
+                <View style={styles.statsHeader}>
+                  <View style={styles.statsTitleBlock}>
+                    <Text style={styles.statsTitle}>Статистика питомцев</Text>
+                    <Text style={styles.statsSubtitle}>
+                      Краткий обзор ваших животных
+                    </Text>
+                  </View>
+
+                  <View style={styles.statsLogoCircle}>
+                    <Image
+                      source={appLogo}
+                      style={styles.statsLogo}
+                      resizeMode="contain"
+                    />
+                  </View>
+                </View>
+
+                <Text style={styles.statsCount}>
+                  {pets.length}{' '}
+                  {pets.length === 1
+                    ? 'питомец'
+                    : pets.length < 5
+                      ? 'питомца'
+                      : 'питомцев'}
+                </Text>
+
+                <View style={styles.statsRow}>
+                  <View style={styles.statBadge}>
+                    <Text style={styles.statBadgeIcon}>🐶</Text>
+                    <Text style={styles.statBadgeText}>
+                      {pets.filter((p) => p.species === 'dog').length} собак
+                    </Text>
+                  </View>
+
+                  <View style={styles.statBadge}>
+                    <Text style={styles.statBadgeIcon}>🐱</Text>
+                    <Text style={styles.statBadgeText}>
+                      {pets.filter((p) => p.species === 'cat').length} кошек
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.viewPetsButton}
+                  onPress={() => setAppState('addPet')}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.viewPetsButtonText}>
+                    Управление питомцами
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {!loadingPets && pets.length === 0 && (
+              <View style={styles.emptyStateCard}>
+                <View style={styles.emptyLogoCircle}>
+                  <Image
+                    source={appLogo}
+                    style={styles.emptyLogo}
+                    resizeMode="contain"
+                  />
+                </View>
+
+                <Text style={styles.emptyStateTitle}>Питомцев пока нет</Text>
+
+                <Text style={styles.emptyStateText}>
+                  Добавьте первого питомца, чтобы получать персональные
+                  рекомендации и вести отдельный диалог.
+                </Text>
+
+                <TouchableOpacity
+                  style={styles.addPetButton}
+                  onPress={() => setAppState('addPet')}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.addPetButtonText}>Добавить питомца</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </ScrollView>
+
+        <BottomNav
+          currentScreen="main"
+          onNavigate={(screen: AppScreen) => setAppState(screen)}
+        />
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
@@ -453,162 +579,343 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F6F9F7' },
-  header: {
-    height: 70,
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 3,
-  },
-  title: { fontSize: 22, fontWeight: '700', color: '#2F4F4F' },
-  
-  petSelector: {
-    maxHeight: 60,
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  petSelectorContent: {
-    paddingHorizontal: 16,
-    gap: 10,
-  },
-  petChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 30,
-    borderWidth: 1,
-    borderColor: '#E8F0EC',
-    gap: 8,
-  },
-  petChipActive: {
-    backgroundColor: '#7BC9A8',
-    borderColor: '#7BC9A8',
-  },
-  petChipIcon: {
-    fontSize: 18,
-  },
-  petChipText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#2F4F4F',
-  },
-  petChipTextActive: {
-    color: '#FFFFFF',
-  },
-  
-  chatContainer: {
+  background: {
     flex: 1,
-    marginHorizontal: 16,
-    marginBottom: 8,
+    backgroundColor: '#F1FFC8',
+  },
+
+  container: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+
+  mainScroll: {
+    flex: 1,
+  },
+
+mainScrollContent: {
+  paddingBottom: 140,
+},
+
+  screenContent: {
+    paddingHorizontal: 18,
+    paddingTop: 40,
+  },
+
+  header: {
+    minHeight: 96,
+    marginBottom: 14,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
+
+  title: {
+    fontSize: 40,
+    lineHeight: 44,
+    fontWeight: '900',
+    color: '#123F32',
+    letterSpacing: -1.2,
+    textShadowColor: 'rgba(255, 255, 255, 0.85)',
+    textShadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    textShadowRadius: 8,
+  },
+
+  subtitleBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
     backgroundColor: '#FFFFFF',
     borderRadius: 22,
-    overflow: 'hidden',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#EEF2E5',
   },
+
+  subtitle: {
+    fontSize: 15,
+    color: '#35594F',
+    fontWeight: '600',
+  },
+
+  petSelectorWrapper: {
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EEF2E5',
+    justifyContent: 'center',
+    marginBottom: 14,
+    overflow: 'hidden',
+    shadowColor: '#123F32',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    elevation: 3,
+  },
+
+  petSelector: {
+    maxHeight: 64,
+  },
+
+  petSelectorContent: {
+    paddingLeft: 8,
+    paddingRight: 14,
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  petChip: {
+    height: 54,
+    maxWidth: 150,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    paddingLeft: 6,
+    paddingRight: 16,
+    borderRadius: 28,
+    gap: 8,
+    overflow: 'hidden',
+  },
+
+  petChipActive: {
+    backgroundColor: '#F1FFC8',
+  },
+
+  petChipIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FFD9',
+    borderWidth: 1,
+    borderColor: '#EEF2E5',
+  },
+
+  petChipIconCircleActive: {
+    borderWidth: 2,
+    borderColor: '#DDECB1',
+    backgroundColor: '#FFFFFF',
+  },
+
+  petChipIcon: {
+    fontSize: 20,
+  },
+
+  petChipText: {
+    flexShrink: 1,
+    maxWidth: 90,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#123F32',
+  },
+
+  petChipTextActive: {
+    color: '#123F32',
+  },
+
+  chatContainer: {
+    height: SCREEN_HEIGHT * 0.52,
+    minHeight: 410,
+    backgroundColor: '#FF5C68',
+    borderRadius: 30,
+    overflow: 'hidden',
+    marginBottom: 14,
+    shadowColor: '#123F32',
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    elevation: 6,
+  },
+
   loadingChat: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#F8FFD9',
   },
+
   loadingChatText: {
     marginTop: 12,
-    color: '#7A8F88',
+    color: '#35594F',
+    fontSize: 15,
   },
 
   statsCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 22,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 16,
+    borderRadius: 28,
+    padding: 18,
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: '#EEF2E5',
+    shadowColor: '#123F32',
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    elevation: 4,
+  },
+
+  statsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
+
+  statsTitleBlock: {
+    flex: 1,
+    paddingRight: 12,
+  },
+
   statsTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#7A8F88',
-    marginBottom: 4,
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#123F32',
   },
+
+  statsSubtitle: {
+    marginTop: 3,
+    fontSize: 13,
+    color: '#35594F',
+  },
+
+  statsLogoCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#FF5C68',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  statsLogo: {
+    width: 36,
+    height: 36,
+  },
+
   statsCount: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#2F4F4F',
-    marginBottom: 8,
+    marginTop: 12,
+    fontSize: 34,
+    lineHeight: 38,
+    fontWeight: '800',
+    color: '#123F32',
   },
+
   statsRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
+    gap: 10,
+    marginTop: 12,
+    marginBottom: 14,
   },
+
   statBadge: {
+    flex: 1,
+    minHeight: 46,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FCFA',
+    justifyContent: 'center',
+    backgroundColor: '#F1FFC8',
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingVertical: 8,
+    borderRadius: 23,
     gap: 6,
   },
+
   statBadgeIcon: {
-    fontSize: 14,
+    fontSize: 18,
   },
+
   statBadgeText: {
-    fontSize: 13,
-    color: '#2F4F4F',
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#123F32',
   },
+
   viewPetsButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#123F32',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+
   viewPetsButtonText: {
-    fontSize: 13,
-    color: '#7BC9A8',
-    fontWeight: '500',
+    fontSize: 15,
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
 
   emptyStateCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 22,
-    padding: 24,
-    marginHorizontal: 16,
-    marginBottom: 16,
+    borderRadius: 28,
+    padding: 22,
+    marginBottom: 18,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#EEF2E5',
+    shadowColor: '#123F32',
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    elevation: 4,
   },
-  emptyStateEmoji: {
-    fontSize: 48,
+
+  emptyLogoCircle: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: '#FF5C68',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 12,
   },
-  emptyStateTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2F4F4F',
-    marginBottom: 4,
+
+  emptyLogo: {
+    width: 54,
+    height: 54,
   },
+
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#123F32',
+    marginBottom: 6,
+  },
+
   emptyStateText: {
-    fontSize: 13,
-    color: '#7A8F88',
+    fontSize: 14,
+    color: '#35594F',
     textAlign: 'center',
+    lineHeight: 20,
     marginBottom: 16,
   },
+
   addPetButton: {
-    backgroundColor: '#7BC9A8',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 18,
+    height: 48,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+    backgroundColor: '#123F32',
     alignItems: 'center',
+    justifyContent: 'center',
   },
+
   addPetButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

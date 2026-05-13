@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../../src/hooks/AuthContext';
 
-const BASE_URL = 'http://192.168.0.29:3001';
+const BASE_URL = 'http://192.168.0.59:3001';
 
 interface AdminProfileProps {
   onLogout: () => void;

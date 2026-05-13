@@ -1,134 +1,196 @@
 // components/BottomNav.tsx
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../src/hooks/AuthContext';
 import { AppScreen } from '../src/types/navigation';
 
-const BASE_URL = 'http://192.168.0.29:3001';
+const BASE_URL = 'http://192.168.0.59:3001';
 
 interface BottomNavigationProps {
   currentScreen: AppScreen;
   onNavigate: (screen: AppScreen) => void;
 }
 
-export default function BottomNavigation({ currentScreen, onNavigate }: BottomNavigationProps) {
-  const { user, avatarUri } = useAuth(); // Измените cachedAvatarUri на avatarUri
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
-  const firstLetter = user?.name 
-    ? user.name.charAt(0).toUpperCase() 
-    : user?.email.charAt(0).toUpperCase() || '?';
+export default function BottomNavigation({
+  currentScreen,
+  onNavigate,
+}: BottomNavigationProps) {
+  const { user, avatarUri } = useAuth();
 
-  // avatarUri уже есть в контексте, используем его напрямую
-  const displayAvatarUri = avatarUri || (user?.avatar_path ? `${BASE_URL}${user.avatar_path}` : null);
+  const displayAvatarUri =
+    avatarUri || (user?.avatar_path ? `${BASE_URL}${user.avatar_path}` : null);
 
-  const navItems = [
-    { screen: 'medications' as AppScreen, icon: '📅', label: 'Прививки' },
-    { screen: 'main' as AppScreen, icon: '🏠', label: 'Главная' },
-    { screen: 'addPet' as AppScreen, icon: '🐶', label: 'Питомцы' },
+  const navItems: {
+    screen: AppScreen;
+    icon: IoniconName;
+    label: string;
+  }[] = [
+    {
+      screen: 'medications' as AppScreen,
+      icon: 'calendar-outline',
+      label: 'Прививки',
+    },
+    {
+      screen: 'main' as AppScreen,
+      icon: 'home-outline',
+      label: 'Главная',
+    },
+    {
+      screen: 'addPet' as AppScreen,
+      icon: 'paw-outline',
+      label: 'Питомцы',
+    },
   ];
 
   return (
-    <View style={styles.bottomNav}>
-      {navItems.map((item) => (
+    <View style={styles.navWrapper}>
+      <View style={styles.bottomNav}>
+        {navItems.map((item) => {
+          const isActive = currentScreen === item.screen;
+
+          return (
+            <TouchableOpacity
+              key={item.screen}
+              style={styles.navButton}
+              onPress={() => onNavigate(item.screen)}
+              activeOpacity={0.85}
+            >
+              <View
+                style={[
+                  styles.iconCircle,
+                  isActive && styles.activeIconCircle,
+                ]}
+              >
+                <Ionicons
+                  name={item.icon}
+                  size={26}
+                  color="#FFFFFF"
+                />
+              </View>
+
+              <Text
+                style={[
+                  styles.navLabel,
+                  isActive && styles.activeNavLabel,
+                ]}
+              >
+                {item.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+
         <TouchableOpacity
-          key={item.screen}
           style={styles.navButton}
-          onPress={() => onNavigate(item.screen)}
+          onPress={() => onNavigate('profile')}
+          activeOpacity={0.85}
         >
-          <Text style={[styles.navText, currentScreen === item.screen && styles.activeNavText]}>
-            {item.icon}
-          </Text>
-          <Text style={[styles.navLabel, currentScreen === item.screen && styles.activeNavLabel]}>
-            {item.label}
+          <View
+            style={[
+              styles.iconCircle,
+              currentScreen === 'profile' && styles.activeIconCircle,
+            ]}
+          >
+            {displayAvatarUri ? (
+              <Image
+                source={{ uri: displayAvatarUri }}
+                style={styles.profileAvatar}
+                resizeMode="cover"
+              />
+            ) : (
+              <Ionicons
+                name="person-outline"
+                size={27}
+                color="#FFFFFF"
+              />
+            )}
+          </View>
+
+          <Text
+            style={[
+              styles.navLabel,
+              currentScreen === 'profile' && styles.activeNavLabel,
+            ]}
+          >
+            Профиль
           </Text>
         </TouchableOpacity>
-      ))}
-
-      <TouchableOpacity
-        style={[
-          styles.profileButton,
-          currentScreen === 'profile' && styles.activeProfileButton
-        ]}
-        onPress={() => onNavigate('profile')}
-      >
-        {displayAvatarUri ? (
-          <Image source={{ uri: displayAvatarUri }} style={styles.profileAvatar} />
-        ) : (
-          <View style={styles.profileAvatarFallback}>
-            <Text style={styles.profileText}>{firstLetter}</Text>
-          </View>
-        )}
-        <Text style={[styles.navLabel, currentScreen === 'profile' && styles.activeNavLabel]}>
-          Профиль
-        </Text>
-      </TouchableOpacity>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    height: 80,
-    width: '100%',
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E8F0EC',
-    paddingHorizontal: 16,
-    paddingBottom: 10,
+  navWrapper: {
     position: 'absolute',
-    bottom: 0,
+    left: 18,
+    right: 18,
+    bottom: 18,
+    alignItems: 'center',
   },
+
+  bottomNav: {
+    width: '100%',
+    minHeight: 82,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FF5C68',
+    borderRadius: 34,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    shadowColor: '#123F32',
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    elevation: 8,
+  },
+
   navButton: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
   },
-  navText: {
-    fontSize: 24,
-    color: '#7A8F88',
+
+  iconCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    marginBottom: 4,
   },
-  activeNavText: {
-    color: '#7BC9A8',
+
+  activeIconCircle: {
+    backgroundColor: '#123F32',
   },
+
   navLabel: {
     fontSize: 11,
-    color: '#7A8F88',
-    marginTop: 4,
-  },
-  activeNavLabel: {
-    color: '#7BC9A8',
-  },
-  profileButton: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-  },
-  activeProfileButton: {
-    opacity: 1,
-  },
-  profileAvatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 2,
-    borderColor: '#7BC9A8',
-  },
-  profileAvatarFallback: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#7BC9A8',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  profileText: {
-    fontSize: 14,
-    fontWeight: '700',
+    lineHeight: 14,
     color: '#FFFFFF',
+    fontWeight: '600',
+    opacity: 0.84,
+  },
+
+  activeNavLabel: {
+    color: '#FFFFFF',
+    opacity: 1,
+    fontWeight: '800',
+  },
+
+  profileAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
 });

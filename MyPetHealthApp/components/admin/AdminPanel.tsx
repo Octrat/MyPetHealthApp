@@ -15,7 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../src/hooks/AuthContext';
 import AdminProfile from './AdminProfile';
 
-const BASE_URL = 'http://192.168.0.29:3001';
+const BASE_URL = 'http://192.168.0.59:3001';
 
 interface AdminPanelProps {
   onNavigate?: (screen: string) => void;

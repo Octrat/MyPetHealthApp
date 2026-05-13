@@ -21,7 +21,7 @@ import BottomNav from './BottomNav';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Calendar from 'expo-calendar';
 
-const BASE_URL = 'http://192.168.0.29:3001';
+const BASE_URL = 'http://192.168.0.59:3001';
 
 interface PetMedicationsScreenProps {
   pets: Pet[];

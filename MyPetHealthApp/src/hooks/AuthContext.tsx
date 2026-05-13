@@ -23,8 +23,8 @@ interface AuthContextProps {
   avatarUri: string | null;
 }
 
-const BASE_URL = 'http://192.168.0.29:3001/api/auth';
-const USER_URL = 'http://192.168.0.29:3001/api/user';
+const BASE_URL = 'http://192.168.0.59:3001/api/auth';
+const USER_URL = 'http://192.168.0.59:3001/api/user';
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
 
@@ -32,7 +32,7 @@ const AuthContext = createContext<AuthContextProps | undefined>(undefined);
 const prefetchAvatar = async (avatarPath: string | undefined) => {
   if (!avatarPath) return false;
   try {
-    const avatarUrl = `http://192.168.0.29:3001${avatarPath}`;
+    const avatarUrl = `http://192.168.0.59:3001${avatarPath}`;
     await Image.prefetch(avatarUrl);
     return true;
   } catch (error) {
@@ -55,7 +55,7 @@ const useAuthLogic = () => {
       setAvatarUri(null);
       return null;
     }
-    const avatarUrl = `http://192.168.0.34:3001${avatarPath}`;
+    const avatarUrl = `http://192.168.0.59:3001${avatarPath}`;
     setAvatarUri(avatarUrl);
     return avatarUrl;
   };
