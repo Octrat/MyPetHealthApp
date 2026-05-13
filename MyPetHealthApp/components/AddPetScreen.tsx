@@ -22,6 +22,8 @@ import { analyzePetHealthByCategory, SizeCategory } from '../src/utils/healthChe
 import { AppScreen } from '../src/types/navigation';
 import BreedRecognizer from './BreedRecognizer';
 import PetQRCode from './PetQRCode';
+import PetPassport from './PetPassport';
+import NotificationsPanel from './NotificationsPanel';
 import BottomNav from './BottomNav';
 
 const BASE_URL = 'http://192.168.0.29:3001';
@@ -46,8 +48,11 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
   const [showForm, setShowForm] = useState(false);
   const [showRecognizer, setShowRecognizer] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
+  const [showPassportModal, setShowPassportModal] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [editingPetId, setEditingPetId] = useState<number | null>(null);
   const [selectedPetForQR, setSelectedPetForQR] = useState<any>(null);
+  const [selectedPetForPassport, setSelectedPetForPassport] = useState<any>(null);
 
   // Форма добавления/редактирования
   const [name, setName] = useState('');
@@ -317,14 +322,21 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Кнопка назад */}
-        {onBack && (
-          <TouchableOpacity onPress={onBack} style={styles.backButton}>
-            <Text style={styles.backButtonText}>← Назад</Text>
+        {/* Кнопка назад и заголовок с колокольчиком */}
+        <View style={styles.header}>
+          {onBack && (
+            <TouchableOpacity onPress={onBack} style={styles.backButton}>
+              <Text style={styles.backButtonText}>← Назад</Text>
+            </TouchableOpacity>
+          )}
+          <Text style={styles.title}>🐾 Мои питомцы</Text>
+          <TouchableOpacity 
+            onPress={() => setShowNotifications(true)} 
+            style={styles.notificationIcon}
+          >
+            <Text style={styles.notificationIconText}>🔔</Text>
           </TouchableOpacity>
-        )}
-
-        <Text style={styles.title}>🐾 Мои питомцы</Text>
+        </View>
 
         {!showForm && (
           <TouchableOpacity
@@ -634,20 +646,30 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
               )}
 
               {/* 🔍 Кнопка QR-кода */}
-              {/* 🔍 Кнопка QR-кода */}
-                <TouchableOpacity 
-                  style={styles.qrCodeButton}
-                  onPress={() => {
-                    if (pet && pet.id) {
-                      setSelectedPetForQR(pet);
-                      setShowQRModal(true);
-                    } else {
-                      Alert.alert('Ошибка', 'Данные питомца не найдены');
-                    }
-                  }}
-                >
-                  <Text style={styles.qrCodeButtonText}>🔍 Создать QR-код для поиска</Text>
-                </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.qrCodeButton}
+                onPress={() => {
+                  if (pet && pet.id) {
+                    setSelectedPetForQR(pet);
+                    setShowQRModal(true);
+                  } else {
+                    Alert.alert('Ошибка', 'Данные питомца не найдены');
+                  }
+                }}
+              >
+                <Text style={styles.qrCodeButtonText}>🔍 Создать QR-код для поиска</Text>
+              </TouchableOpacity>
+
+              {/* 📋 Кнопка паспорта */}
+              <TouchableOpacity 
+                style={styles.passportButton}
+                onPress={() => {
+                  setSelectedPetForPassport(pet);
+                  setShowPassportModal(true);
+                }}
+              >
+                <Text style={styles.passportButtonText}>📋 Паспорт питомца</Text>
+              </TouchableOpacity>
             </View>
           );
         })}
@@ -669,11 +691,36 @@ export default function AddPetScreen({ onBack, onNavigate }: AddPetScreenProps) 
       </Modal>
 
       {/* Модальное окно для QR-кода */}
-      <PetQRCode
-        visible={showQRModal}
-        pet={selectedPetForQR}
-        onClose={() => setShowQRModal(false)}
-        onSave={loadPets}
+      {selectedPetForQR && (
+        <PetQRCode
+          visible={showQRModal}
+          pet={selectedPetForQR}
+          onClose={() => {
+            setShowQRModal(false);
+            setSelectedPetForQR(null);
+          }}
+          onSave={loadPets}
+        />
+      )}
+
+      {/* Модальное окно для паспорта */}
+      {selectedPetForPassport && (
+        <PetPassport
+          visible={showPassportModal}
+          pet={selectedPetForPassport}
+          onClose={() => {
+            setShowPassportModal(false);
+            setSelectedPetForPassport(null);
+          }}
+          onSave={loadPets}
+        />
+      )}
+
+      {/* Модальное окно для уведомлений */}
+      <NotificationsPanel
+        visible={showNotifications}
+        onClose={() => setShowNotifications(false)}
+        pets={pets}
       />
 
       {/* Bottom Navigation */}
@@ -694,8 +741,14 @@ const styles = StyleSheet.create({
     padding: 16, 
     paddingBottom: 100 
   },
-  backButton: {
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 16,
+  },
+  backButton: {
+    padding: 8,
   },
   backButtonText: {
     fontSize: 16,
@@ -705,8 +758,17 @@ const styles = StyleSheet.create({
   title: { 
     fontSize: 22, 
     fontWeight: '700', 
-    marginBottom: 16,
     color: '#2F4F4F',
+  },
+  notificationIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationIconText: {
+    fontSize: 22,
   },
   addPetButton: {
     backgroundColor: '#7BC9A8',
@@ -961,6 +1023,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#2F4F4F',
+  },
+  // Кнопка паспорта
+  passportButton: {
+    backgroundColor: '#FFF8E1',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#FFC107',
+  },
+  passportButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#FF8F00',
   },
   modalOverlay: {
     flex: 1,

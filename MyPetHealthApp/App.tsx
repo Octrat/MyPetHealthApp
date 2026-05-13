@@ -293,14 +293,23 @@ function MainApp() {
       />
     );
   
-  if (appState === 'admin-panel') {
-    return (
-      <AdminPanel
-        onBack={() => setAppState('main')}
-        onNavigate={(screen) => setAppState(screen as AppScreen)}
-      />
-    );
-  }
+    if (appState === 'admin-panel') {
+      return (
+        <AdminPanel
+          onNavigate={(screen) => {
+            if (screen === 'main') {
+              setAppState('main');
+            } else {
+              setAppState(screen as AppScreen);
+            }
+          }}
+          onLogout={async () => {
+            await logout();
+            setAppState('login');
+          }}
+        />
+      );
+    }
 
   // Главный экран с чатом и переключателем питомцев
   return (

@@ -16,7 +16,7 @@ import avatarRoutes from './routes/avatar.js';
 import visionRoutes from './routes/vision.js';
 import adminRoutes from './routes/admin.js';
 
-import { authenticateToken } from './middleware/auth.js';
+import { authenticateToken, requireAdmin } from './middleware/auth.js';
 import { testConnection } from './config/database.js';
 import pool from './config/database.js';
 
@@ -113,6 +113,8 @@ app.get('/', (req, res) => {
       'public-pet': '/api/public/pet/:id',
       'report-location': '/api/report-location',
       'pet-reports': '/api/pets/:id/reports',
+      'admin-stats': '/api/admin/stats',
+      'admin-passports': '/api/admin/passports',
     }
   });
 });
@@ -163,7 +165,6 @@ app.post('/api/assistant/pet/:petId/ask', authenticateToken, async (req, res) =>
   }
   
   try {
-    // Получаем информацию о питомце
     const petResult = await pool.query(
       `SELECT p.*, 
               b.name as breed_name, 
@@ -184,7 +185,6 @@ app.post('/api/assistant/pet/:petId/ask', authenticateToken, async (req, res) =>
     console.log('🐕 Найден питомец:', pet.name, 'вид:', pet.species);
     console.log('📊 Вес:', pet.weight, 'Возраст:', pet.age, 'Порода:', pet.breed_name);
     
-    // Создаём подробный контекст питомца
     const petContext = `
 📋 ИНФОРМАЦИЯ О ПИТОМЦЕ:
 
@@ -222,7 +222,6 @@ ${pet.description ? `📝 Особенности: ${pet.description}` : ''}
 // 💬 ЭНДПОИНТЫ ДЛЯ РАБОТЫ С ЧАТАМИ
 // ============================================
 
-// Получить все чаты пользователя
 app.get('/api/assistant/chats', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
@@ -240,7 +239,6 @@ app.get('/api/assistant/chats', authenticateToken, async (req, res) => {
   }
 });
 
-// Создать новый чат
 app.post('/api/assistant/chats', authenticateToken, async (req, res) => {
   const { petId, title } = req.body;
   try {
@@ -257,7 +255,6 @@ app.post('/api/assistant/chats', authenticateToken, async (req, res) => {
   }
 });
 
-// Получить сообщения чата
 app.get('/api/assistant/chats/:chatId/messages', authenticateToken, async (req, res) => {
   const { chatId } = req.params;
   try {
@@ -276,7 +273,6 @@ app.get('/api/assistant/chats/:chatId/messages', authenticateToken, async (req, 
   }
 });
 
-// Сохранить сообщения в чат
 app.post('/api/assistant/chats/:chatId/messages', authenticateToken, async (req, res) => {
   const { chatId } = req.params;
   const { messages } = req.body;
@@ -294,7 +290,6 @@ app.post('/api/assistant/chats/:chatId/messages', authenticateToken, async (req,
   }
 });
 
-// Удалить чат
 app.delete('/api/assistant/chats/:chatId', authenticateToken, async (req, res) => {
   const { chatId } = req.params;
   try {
@@ -309,7 +304,6 @@ app.delete('/api/assistant/chats/:chatId', authenticateToken, async (req, res) =
   }
 });
 
-// Обновить название чата
 app.patch('/api/assistant/chats/:chatId', authenticateToken, async (req, res) => {
   const { chatId } = req.params;
   const { title } = req.body;
@@ -332,7 +326,6 @@ app.patch('/api/assistant/chats/:chatId', authenticateToken, async (req, res) =>
 // 🐕 ЭНДПОИНТЫ ДЛЯ РАСПОЗНАВАНИЯ ПОРОД ЧЕРЕЗ GEMINI
 // ============================================
 
-// Полное распознавание породы с детальными характеристиками
 app.post('/api/vision/gemini-recognize', authenticateToken, async (req, res) => {
   try {
     const { image, species } = req.body;
@@ -352,7 +345,6 @@ app.post('/api/vision/gemini-recognize', authenticateToken, async (req, res) => 
   }
 });
 
-// Быстрое распознавание (только порода, без деталей)
 app.post('/api/vision/quick-recognize', authenticateToken, async (req, res) => {
   try {
     const { image, species } = req.body;
@@ -376,11 +368,9 @@ app.post('/api/vision/quick-recognize', authenticateToken, async (req, res) => {
 // 🔍 ПУБЛИЧНЫЕ ЭНДПОИНТЫ ДЛЯ ПОИСКА ПОТЕРЯННЫХ ПИТОМЦЕВ
 // ============================================
 
-// Публичный эндпоинт для информации о питомце (без авторизации)
 app.get('/api/public/pet/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    // Получаем информацию о питомце
     const petResult = await pool.query(
       `SELECT p.*, 
               b.name as breed_name, 
@@ -425,7 +415,6 @@ app.get('/api/public/pet/:id', async (req, res) => {
   }
 });
 
-// Эндпоинт для получения геолокации от нашедшего с отправкой уведомления
 app.post('/api/report-location', async (req, res) => {
   const { petId, latitude, longitude, timestamp } = req.body;
   
@@ -434,7 +423,6 @@ app.post('/api/report-location', async (req, res) => {
   }
   
   try {
-    // Сохраняем репорт в базу
     const result = await pool.query(
       `INSERT INTO pet_reports (pet_id, latitude, longitude, reported_at, is_notified)
        VALUES ($1, $2, $3, $4, $5)
@@ -442,7 +430,6 @@ app.post('/api/report-location', async (req, res) => {
       [petId, latitude, longitude, timestamp || new Date(), false]
     );
     
-    // Получаем владельца питомца (email получателя из БД)
     const petOwner = await pool.query(
       `SELECT u.id, u.email, u.name as owner_name, p.name as pet_name, p.qr_phone
        FROM pets p
@@ -459,7 +446,6 @@ app.post('/api/report-location', async (req, res) => {
     const googleMapsLink = `https://www.google.com/maps?q=${latitude},${longitude}`;
     const yandexMapsLink = `https://yandex.ru/maps/?pt=${longitude},${latitude}&z=15&l=map`;
     
-    // Отправляем email владельцу (если настроен SMTP)
     let emailSent = false;
     let emailError = null;
     
@@ -474,14 +460,12 @@ app.post('/api/report-location', async (req, res) => {
               <h1 style="color: #7BC9A8;">🐾 Ваш питомец найден!</h1>
               <p>Здравствуйте, ${owner.owner_name || 'владелец'}!</p>
               <p>Кто-то отсканировал QR-код вашего питомца <strong>${owner.pet_name}</strong> и отправил своё местоположение.</p>
-              
               <h2>📍 Местоположение:</h2>
               <p>
                 <strong>Широта:</strong> ${latitude}<br>
                 <strong>Долгота:</strong> ${longitude}<br>
                 <strong>Время:</strong> ${new Date().toLocaleString()}
               </p>
-              
               <p>
                 <a href="${googleMapsLink}" style="background-color: #7BC9A8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin-right: 10px;">
                   🗺️ Google Maps
@@ -490,9 +474,7 @@ app.post('/api/report-location', async (req, res) => {
                   🗺️ Яндекс.Карты
                 </a>
               </p>
-              
               <p><strong>⚠️ Важно:</strong> Поторопитесь! Питомец может уйти с этого места.</p>
-              
               <hr style="margin: 20px 0;">
               <p style="color: #888; font-size: 12px;">Это письмо отправлено автоматически из приложения HealthyPaws.</p>
             </div>
@@ -513,7 +495,6 @@ app.post('/api/report-location', async (req, res) => {
       console.log(`⚠️ Email не отправлен (настроен: ${emailConfigured}, email: ${owner.email})`);
     }
     
-    // Обновляем статус уведомления
     await pool.query(
       `UPDATE pet_reports SET is_notified = $1 WHERE id = $2`,
       [emailSent, result.rows[0].id]
@@ -532,7 +513,6 @@ app.post('/api/report-location', async (req, res) => {
   }
 });
 
-// Эндпоинт для получения репортов питомца (для владельца)
 app.get('/api/pets/:id/reports', authenticateToken, async (req, res) => {
   const { id } = req.params;
   try {
@@ -550,6 +530,104 @@ app.get('/api/pets/:id/reports', authenticateToken, async (req, res) => {
   }
 });
 
+// ============================================
+// 👑 АДМИН ЭНДПОИНТЫ
+// ============================================
+
+// Статистика для админ-панели
+// ============================================
+// 👑 АДМИН ЭНДПОИНТЫ
+// ============================================
+
+// Статистика для админ-панели
+app.get('/api/admin/stats', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const [totalUsers, totalPets, totalDogs, totalCats] = await Promise.all([
+      pool.query('SELECT COUNT(*) FROM users'),
+      pool.query('SELECT COUNT(*) FROM pets'),
+      pool.query("SELECT COUNT(*) FROM pets WHERE species = 'dog'"),
+      pool.query("SELECT COUNT(*) FROM pets WHERE species = 'cat'"),
+    ]);
+
+    res.json({
+      totalUsers: parseInt(totalUsers.rows[0].count),
+      totalPets: parseInt(totalPets.rows[0].count),
+      totalDogs: parseInt(totalDogs.rows[0].count),
+      totalCats: parseInt(totalCats.rows[0].count),
+    });
+  } catch (error) {
+    console.error('Admin stats error:', error);
+    res.status(500).json({ message: 'Ошибка получения статистики' });
+  }
+});
+
+// Получить все заявки на паспорта (исправленный)
+app.get('/api/admin/passports', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT p.id, p.name, p.species, p.breed_id,
+              b.name as breed_name,
+              u.email as owner_email, u.name as owner_name,
+              p.passport_number, p.passport_issued_by,
+              p.passport_chip_number, p.passport_color,
+              p.passport_character, p.passport_breeding_place,
+              p.passport_owner_name, p.passport_owner_phone,
+              p.passport_status
+       FROM pets p
+       LEFT JOIN breeds b ON p.breed_id = b.id
+       JOIN users u ON p.user_id = u.id
+       WHERE p.passport_status = 'pending'
+       ORDER BY p.id DESC`,
+      []
+    );
+    console.log('📋 Заявок в БД:', result.rows.length);
+    if (result.rows.length > 0) {
+      console.log('📋 Первая заявка:', result.rows[0]);
+    }
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Admin passports error:', error);
+    res.status(500).json({ message: 'Ошибка получения заявок' });
+  }
+});
+
+// Одобрить/отклонить паспорт
+app.post('/api/admin/passports/:petId/review', authenticateToken, requireAdmin, async (req, res) => {
+  const { petId } = req.params;
+  const { status, comment } = req.body;
+  
+  console.log('📋 Обработка заявки для petId:', petId);
+  
+  // Проверка на undefined
+  if (!petId || petId === 'undefined') {
+    console.error('❌ petId не передан или равен undefined');
+    return res.status(400).json({ message: 'Не указан ID питомца' });
+  }
+  
+  try {
+    const result = await pool.query(
+      `UPDATE pets 
+       SET passport_status = $1, 
+           passport_review_comment = $2,
+           passport_reviewed_by = $3,
+           passport_reviewed_at = NOW()
+       WHERE id = $4
+       RETURNING id`,
+      [status, comment, req.user.userId, parseInt(petId)]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Питомец не найден' });
+    }
+    
+    console.log(`✅ Паспорт для питомца ID ${petId} ${status === 'approved' ? 'одобрен' : 'отклонён'}`);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Review passport error:', error);
+    res.status(500).json({ message: 'Ошибка обработки заявки' });
+  }
+});
+
 // Запуск сервера
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
@@ -564,5 +642,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`👁️ Legacy Vision API: http://127.0.0.1:${PORT}/api/vision/test`);
   console.log(`🔍 Public Pet API: http://127.0.0.1:${PORT}/api/public/pet/:id`);
   console.log(`📍 Report Location: http://127.0.0.1:${PORT}/api/report-location`);
+  console.log(`📊 Admin Stats: http://127.0.0.1:${PORT}/api/admin/stats`);
+  console.log(`📋 Admin Passports: http://127.0.0.1:${PORT}/api/admin/passports`);
   console.log(`📧 Email notifications: ${emailConfigured ? '✅ Active' : '❌ Disabled'}`);
 });
