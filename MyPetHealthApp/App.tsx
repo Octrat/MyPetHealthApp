@@ -593,9 +593,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-mainScrollContent: {
-  paddingBottom: 140,
-},
+  mainScrollContent: {
+    paddingBottom: 110,
+  },
 
   screenContent: {
     paddingHorizontal: 18,
