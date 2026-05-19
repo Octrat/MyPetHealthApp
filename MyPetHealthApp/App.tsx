@@ -13,6 +13,8 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Asset } from 'expo-asset';
+
 import AddPetScreen from './components/AddPetScreen';
 import SplashScreen from './components/SplashScreen';
 import LoginScreen from './components/LoginScreen';
@@ -33,8 +35,25 @@ const BASE_URL = 'http://192.168.0.59:3001';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-const mainBg = require('./assets/images/ФонГлав.png');
+const mainBg = require('./assets/images/ФонГлав.jpg');
+const lightCardBg = require('./assets/images/ФонГлавБел.jpg');
 const appLogo = require('./assets/images/Логотип.png');
+
+const imagesToPreload = [mainBg, lightCardBg, appLogo];
+
+const COLORS = {
+  pageBg: '#F7F0FF',
+  white: '#FFFFFF',
+  cardSoft: '#FFE8E1',
+  text: '#202020',
+  textSoft: '#6F6578',
+  accent: '#C9A7FF',
+  accentDark: '#A984E8',
+  coral: '#FF7A6B',
+  coralDark: '#E95F53',
+  border: '#EADDF8',
+  shadow: '#8E78A8',
+};
 
 interface Chat {
   id: number;
@@ -348,11 +367,7 @@ function MainApp() {
   }
 
   return (
-    <ImageBackground
-      source={mainBg}
-      style={styles.background}
-      resizeMode="cover"
-    >
+    <View style={styles.background}>
       <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <StatusBar
           barStyle="dark-content"
@@ -371,11 +386,18 @@ function MainApp() {
               <Text style={styles.title}>HealthyPaws</Text>
 
               <View style={styles.subtitleBadge}>
-                <Text style={styles.subtitle}>Забота о здоровье питомца</Text>
+                <Text style={styles.subtitle}>
+                  Забота о здоровье питомца
+                </Text>
               </View>
             </View>
 
-            <View style={styles.petSelectorWrapper}>
+            <ImageBackground
+              source={lightCardBg}
+              style={styles.petSelectorWrapper}
+              imageStyle={styles.patternCardImage}
+              resizeMode="cover"
+            >
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -451,33 +473,47 @@ function MainApp() {
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-            </View>
+            </ImageBackground>
 
             <View style={styles.chatContainer}>
-              {isLoadingChat ? (
-                <View style={styles.loadingChat}>
-                  <ActivityIndicator size="large" color="#123F32" />
-                  <Text style={styles.loadingChatText}>Загрузка диалога...</Text>
-                </View>
-              ) : currentChatId ? (
-                <PetAssistant
-                  key={currentChatId}
-                  currentChatId={currentChatId}
-                  currentPetId={currentPetId}
-                  chatTitle={currentChatTitle}
-                  onBack={() => {}}
-                  onMessagesLoaded={() => {}}
-                />
-              ) : (
-                <View style={styles.loadingChat}>
-                  <ActivityIndicator size="large" color="#123F32" />
-                  <Text style={styles.loadingChatText}>Загрузка...</Text>
-                </View>
-              )}
+              <ImageBackground
+                source={lightCardBg}
+                style={styles.chatBackground}
+                imageStyle={styles.patternCardImage}
+                resizeMode="cover"
+              >
+                {isLoadingChat ? (
+                  <View style={styles.loadingChat}>
+                    <ActivityIndicator size="large" color={COLORS.accentDark} />
+                    <Text style={styles.loadingChatText}>
+                      Загрузка диалога...
+                    </Text>
+                  </View>
+                ) : currentChatId ? (
+                  <PetAssistant
+                    key={currentChatId}
+                    currentChatId={currentChatId}
+                    currentPetId={currentPetId}
+                    chatTitle={currentChatTitle}
+                    onBack={() => {}}
+                    onMessagesLoaded={() => {}}
+                  />
+                ) : (
+                  <View style={styles.loadingChat}>
+                    <ActivityIndicator size="large" color={COLORS.accentDark} />
+                    <Text style={styles.loadingChatText}>Загрузка...</Text>
+                  </View>
+                )}
+              </ImageBackground>
             </View>
 
             {!loadingPets && pets.length > 0 && (
-              <View style={styles.statsCard}>
+              <ImageBackground
+                source={lightCardBg}
+                style={styles.statsCard}
+                imageStyle={styles.patternCardImage}
+                resizeMode="cover"
+              >
                 <View style={styles.statsHeader}>
                   <View style={styles.statsTitleBlock}>
                     <Text style={styles.statsTitle}>Статистика питомцев</Text>
@@ -529,11 +565,16 @@ function MainApp() {
                     Управление питомцами
                   </Text>
                 </TouchableOpacity>
-              </View>
+              </ImageBackground>
             )}
 
             {!loadingPets && pets.length === 0 && (
-              <View style={styles.emptyStateCard}>
+              <ImageBackground
+                source={lightCardBg}
+                style={styles.emptyStateCard}
+                imageStyle={styles.patternCardImage}
+                resizeMode="cover"
+              >
                 <View style={styles.emptyLogoCircle}>
                   <Image
                     source={appLogo}
@@ -556,7 +597,7 @@ function MainApp() {
                 >
                   <Text style={styles.addPetButtonText}>Добавить питомца</Text>
                 </TouchableOpacity>
-              </View>
+              </ImageBackground>
             )}
           </View>
         </ScrollView>
@@ -566,11 +607,31 @@ function MainApp() {
           onNavigate={(screen: AppScreen) => setAppState(screen)}
         />
       </SafeAreaView>
-    </ImageBackground>
+    </View>
   );
 }
 
 export default function App() {
+  const [assetsLoaded, setAssetsLoaded] = useState(false);
+
+  useEffect(() => {
+    const loadAssets = async () => {
+      try {
+        await Asset.loadAsync(imagesToPreload);
+      } catch (error) {
+        console.log('Ошибка предзагрузки картинок:', error);
+      } finally {
+        setAssetsLoaded(true);
+      }
+    };
+
+    loadAssets();
+  }, []);
+
+  if (!assetsLoaded) {
+    return <SplashScreen />;
+  }
+
   return (
     <AuthProvider>
       <MainApp />
@@ -581,7 +642,7 @@ export default function App() {
 const styles = StyleSheet.create({
   background: {
     flex: 1,
-    backgroundColor: '#F1FFC8',
+    backgroundColor: COLORS.pageBg,
   },
 
   container: {
@@ -594,16 +655,16 @@ const styles = StyleSheet.create({
   },
 
   mainScrollContent: {
-    paddingBottom: 110,
+    paddingBottom: 125,
   },
 
   screenContent: {
     paddingHorizontal: 18,
-    paddingTop: 40,
+    paddingTop: 36,
   },
 
   header: {
-    minHeight: 96,
+    minHeight: 94,
     marginBottom: 14,
     justifyContent: 'center',
     alignItems: 'flex-start',
@@ -613,66 +674,63 @@ const styles = StyleSheet.create({
     fontSize: 40,
     lineHeight: 44,
     fontWeight: '900',
-    color: '#123F32',
-    letterSpacing: -1.2,
-    textShadowColor: 'rgba(255, 255, 255, 0.85)',
-    textShadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    textShadowRadius: 8,
+    color: COLORS.text,
+    letterSpacing: -1.1,
   },
 
   subtitleBadge: {
     alignSelf: 'flex-start',
-    marginTop: 8,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 22,
+    marginTop: 10,
+    backgroundColor: COLORS.white,
+    borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: '#EEF2E5',
+    borderColor: COLORS.border,
   },
 
   subtitle: {
     fontSize: 15,
-    color: '#35594F',
-    fontWeight: '600',
+    color: COLORS.textSoft,
+    fontWeight: '700',
+  },
+
+  patternCardImage: {
+    borderRadius: 28,
   },
 
   petSelectorWrapper: {
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#EEF2E5',
+    minHeight: 78,
+    borderRadius: 28,
     justifyContent: 'center',
     marginBottom: 14,
     overflow: 'hidden',
-    shadowColor: '#123F32',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: COLORS.shadow,
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
     shadowOffset: {
       width: 0,
       height: 8,
     },
-    elevation: 3,
+    elevation: 4,
   },
 
   petSelector: {
-    maxHeight: 64,
+    maxHeight: 70,
   },
 
   petSelectorContent: {
-    paddingLeft: 8,
+    paddingLeft: 10,
     paddingRight: 14,
     alignItems: 'center',
     gap: 8,
   },
 
   petChip: {
-    height: 54,
-    maxWidth: 150,
+    height: 56,
+    maxWidth: 160,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'transparent',
@@ -680,11 +738,10 @@ const styles = StyleSheet.create({
     paddingRight: 16,
     borderRadius: 28,
     gap: 8,
-    overflow: 'hidden',
   },
 
   petChipActive: {
-    backgroundColor: '#F1FFC8',
+    backgroundColor: COLORS.accent,
   },
 
   petChipIconCircle: {
@@ -693,15 +750,15 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F8FFD9',
+    backgroundColor: COLORS.white,
     borderWidth: 1,
-    borderColor: '#EEF2E5',
+    borderColor: COLORS.border,
   },
 
   petChipIconCircleActive: {
-    borderWidth: 2,
-    borderColor: '#DDECB1',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
+    borderColor: 'transparent',
+    borderWidth: 0,
   },
 
   petChipIcon: {
@@ -712,23 +769,22 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     maxWidth: 90,
     fontSize: 15,
-    fontWeight: '700',
-    color: '#123F32',
+    fontWeight: '800',
+    color: COLORS.text,
   },
 
   petChipTextActive: {
-    color: '#123F32',
+    color: COLORS.white,
   },
 
   chatContainer: {
-    height: SCREEN_HEIGHT * 0.52,
-    minHeight: 410,
-    backgroundColor: '#FF5C68',
+    height: SCREEN_HEIGHT * 0.47,
+    minHeight: 350,
     borderRadius: 30,
     overflow: 'hidden',
     marginBottom: 14,
-    shadowColor: '#123F32',
-    shadowOpacity: 0.14,
+    shadowColor: COLORS.shadow,
+    shadowOpacity: 0.13,
     shadowRadius: 18,
     shadowOffset: {
       width: 0,
@@ -737,28 +793,34 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
 
+  chatBackground: {
+    flex: 1,
+    borderRadius: 30,
+    overflow: 'hidden',
+  },
+
   loadingChat: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8FFD9',
   },
 
   loadingChatText: {
     marginTop: 12,
-    color: '#35594F',
+    color: COLORS.textSoft,
     fontSize: 15,
+    fontWeight: '600',
   },
 
   statsCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 28,
     padding: 18,
     marginBottom: 18,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#EEF2E5',
-    shadowColor: '#123F32',
-    shadowOpacity: 0.08,
+    borderColor: COLORS.border,
+    shadowColor: COLORS.shadow,
+    shadowOpacity: 0.12,
     shadowRadius: 14,
     shadowOffset: {
       width: 0,
@@ -780,36 +842,37 @@ const styles = StyleSheet.create({
 
   statsTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#123F32',
+    fontWeight: '900',
+    color: COLORS.text,
   },
 
   statsSubtitle: {
     marginTop: 3,
     fontSize: 13,
-    color: '#35594F',
+    color: COLORS.textSoft,
+    fontWeight: '500',
   },
 
   statsLogoCircle: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: '#FF5C68',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   statsLogo: {
-    width: 36,
-    height: 36,
+    width: 38,
+    height: 38,
   },
 
   statsCount: {
     marginTop: 12,
     fontSize: 34,
     lineHeight: 38,
-    fontWeight: '800',
-    color: '#123F32',
+    fontWeight: '900',
+    color: COLORS.text,
   },
 
   statsRow: {
@@ -821,15 +884,17 @@ const styles = StyleSheet.create({
 
   statBadge: {
     flex: 1,
-    minHeight: 46,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F1FFC8',
+    backgroundColor: COLORS.cardSoft,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 23,
     gap: 6,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
 
   statBadgeIcon: {
@@ -838,34 +903,34 @@ const styles = StyleSheet.create({
 
   statBadgeText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#123F32',
+    fontWeight: '800',
+    color: COLORS.text,
   },
 
   viewPetsButton: {
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#123F32',
+    backgroundColor: COLORS.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   viewPetsButtonText: {
     fontSize: 15,
-    color: '#FFFFFF',
-    fontWeight: '700',
+    color: COLORS.white,
+    fontWeight: '800',
   },
 
   emptyStateCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 28,
     padding: 22,
     marginBottom: 18,
     alignItems: 'center',
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#EEF2E5',
-    shadowColor: '#123F32',
-    shadowOpacity: 0.08,
+    borderColor: COLORS.border,
+    shadowColor: COLORS.shadow,
+    shadowOpacity: 0.12,
     shadowRadius: 14,
     shadowOffset: {
       width: 0,
@@ -875,47 +940,48 @@ const styles = StyleSheet.create({
   },
 
   emptyLogoCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: '#FF5C68',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: COLORS.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
 
   emptyLogo: {
-    width: 54,
-    height: 54,
+    width: 56,
+    height: 56,
   },
 
   emptyStateTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#123F32',
+    fontWeight: '900',
+    color: COLORS.text,
     marginBottom: 6,
   },
 
   emptyStateText: {
     fontSize: 14,
-    color: '#35594F',
+    color: COLORS.textSoft,
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 16,
+    fontWeight: '500',
   },
 
   addPetButton: {
     height: 48,
     paddingHorizontal: 24,
     borderRadius: 24,
-    backgroundColor: '#123F32',
+    backgroundColor: COLORS.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   addPetButtonText: {
-    color: '#FFFFFF',
+    color: COLORS.white,
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
   },
 });

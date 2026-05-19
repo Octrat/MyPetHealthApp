@@ -17,8 +17,22 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../src/hooks/AuthContext';
 import { RegisterData } from '../src/types';
 
-const authBg = require('../assets/images/Фон.png');
+const formBg = require('../assets/images/ФонГлавБел.jpg');
 const appLogo = require('../assets/images/Логотип.png');
+
+const COLORS = {
+  background: '#FFFFFF',
+  white: '#FFFFFF',
+  cardSoft: '#FFE8E1',
+  text: '#202020',
+  textSoft: '#6F6578',
+  accent: '#C9A7FF',
+  accentDark: '#A984E8',
+  coral: '#FF7A6B',
+  coralDark: '#E95F53',
+  border: '#EADDF8',
+  shadow: '#8E78A8',
+};
 
 interface RegisterScreenProps {
   onSwitchToLogin: () => void;
@@ -71,11 +85,7 @@ export default function RegisterScreen({
   };
 
   return (
-    <ImageBackground
-      source={authBg}
-      style={styles.background}
-      resizeMode="cover"
-    >
+    <View style={styles.background}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -96,23 +106,23 @@ export default function RegisterScreen({
               </Text>
             </View>
 
-            <View style={styles.decorBlock}>
-              <Text style={styles.decorHeart}>♡</Text>
-              <Text style={styles.decorStarOne}>✦</Text>
-              <Text style={styles.decorStarTwo}>✧</Text>
-            </View>
-
-            <View style={styles.formCard}>
+            <ImageBackground
+              source={formBg}
+              style={styles.formCard}
+              imageStyle={styles.formCardImage}
+              resizeMode="cover"
+            >
               <View style={styles.inputWrapper}>
                 <Ionicons
                   name="mail-outline"
                   size={22}
-                  color="#183F35"
+                  color={COLORS.text}
                   style={styles.inputIcon}
                 />
+
                 <TextInput
                   placeholder="Электронная почта"
-                  placeholderTextColor="#7A8F88"
+                  placeholderTextColor={COLORS.textSoft}
                   style={styles.inputInner}
                   value={email}
                   onChangeText={setEmail}
@@ -126,18 +136,20 @@ export default function RegisterScreen({
                 <Ionicons
                   name="lock-closed-outline"
                   size={22}
-                  color="#183F35"
+                  color={COLORS.text}
                   style={styles.inputIcon}
                 />
+
                 <TextInput
                   placeholder="Пароль"
-                  placeholderTextColor="#7A8F88"
+                  placeholderTextColor={COLORS.textSoft}
                   style={styles.inputInner}
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={securePassword}
                   editable={!isLoading}
                 />
+
                 <TouchableOpacity
                   onPress={() => setSecurePassword(!securePassword)}
                   disabled={isLoading}
@@ -146,7 +158,7 @@ export default function RegisterScreen({
                   <Ionicons
                     name={securePassword ? 'eye-off-outline' : 'eye-outline'}
                     size={23}
-                    color="#183F35"
+                    color={COLORS.text}
                   />
                 </TouchableOpacity>
               </View>
@@ -155,18 +167,20 @@ export default function RegisterScreen({
                 <Ionicons
                   name="lock-closed-outline"
                   size={22}
-                  color="#183F35"
+                  color={COLORS.text}
                   style={styles.inputIcon}
                 />
+
                 <TextInput
                   placeholder="Подтвердите пароль"
-                  placeholderTextColor="#7A8F88"
+                  placeholderTextColor={COLORS.textSoft}
                   style={styles.inputInner}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={secureConfirm}
                   editable={!isLoading}
                 />
+
                 <TouchableOpacity
                   onPress={() => setSecureConfirm(!secureConfirm)}
                   disabled={isLoading}
@@ -175,7 +189,7 @@ export default function RegisterScreen({
                   <Ionicons
                     name={secureConfirm ? 'eye-off-outline' : 'eye-outline'}
                     size={23}
-                    color="#183F35"
+                    color={COLORS.text}
                   />
                 </TouchableOpacity>
               </View>
@@ -190,23 +204,25 @@ export default function RegisterScreen({
                 activeOpacity={0.85}
               >
                 {isLoading ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                  <ActivityIndicator color={COLORS.white} />
                 ) : (
                   <Text style={styles.registerButtonText}>
                     Зарегистрироваться
                   </Text>
                 )}
               </TouchableOpacity>
-            </View>
+            </ImageBackground>
 
             <View style={styles.bottomBlock}>
               <View style={styles.dividerRow}>
                 <View style={styles.divider} />
+
                 <Image
                   source={appLogo}
                   style={styles.bottomLogo}
                   resizeMode="contain"
                 />
+
                 <View style={styles.divider} />
               </View>
 
@@ -220,14 +236,14 @@ export default function RegisterScreen({
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </ImageBackground>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   background: {
     flex: 1,
-    backgroundColor: '#F1FFC8',
+    backgroundColor: COLORS.background,
   },
 
   container: {
@@ -247,66 +263,35 @@ const styles = StyleSheet.create({
   },
 
   header: {
-    marginBottom: 16,
-    zIndex: 3,
+    marginBottom: 24,
   },
 
   title: {
-    fontSize: 44,
-    lineHeight: 48,
-    fontWeight: '800',
-    color: '#183F35',
-    letterSpacing: -1,
+    fontSize: 46,
+    lineHeight: 50,
+    fontWeight: '900',
+    color: COLORS.text,
+    letterSpacing: -1.2,
   },
 
   subtitle: {
     marginTop: 14,
-    maxWidth: 310,
+    maxWidth: 315,
     fontSize: 16,
     lineHeight: 23,
-    color: '#35594F',
-  },
-
-  decorBlock: {
-    height: 56,
-    marginTop: 0,
-    marginBottom: 8,
-    zIndex: 4,
-  },
-
-  decorHeart: {
-    position: 'absolute',
-    left: 12,
-    top: 0,
-    fontSize: 38,
-    color: '#FF5C68',
-    fontWeight: '700',
-    transform: [{ rotate: '-18deg' }],
-  },
-
-  decorStarOne: {
-    position: 'absolute',
-    right: 70,
-    top: 10,
-    fontSize: 24,
-    color: '#183F35',
-  },
-
-  decorStarTwo: {
-    position: 'absolute',
-    right: 20,
-    top: 0,
-    fontSize: 20,
-    color: '#FF5C68',
+    color: COLORS.textSoft,
+    fontWeight: '600',
   },
 
   formCard: {
-    backgroundColor: '#FF5C68',
     borderRadius: 34,
     paddingHorizontal: 20,
     paddingTop: 28,
     paddingBottom: 30,
-    shadowColor: '#183F35',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: COLORS.shadow,
     shadowOpacity: 0.14,
     shadowRadius: 22,
     shadowOffset: {
@@ -314,17 +299,22 @@ const styles = StyleSheet.create({
       height: 12,
     },
     elevation: 8,
-    zIndex: 2,
+  },
+
+  formCardImage: {
+    borderRadius: 34,
   },
 
   inputWrapper: {
     minHeight: 66,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FFD9',
+    backgroundColor: COLORS.white,
     borderRadius: 32,
     marginBottom: 15,
     paddingHorizontal: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
 
   inputIcon: {
@@ -334,19 +324,20 @@ const styles = StyleSheet.create({
   inputInner: {
     flex: 1,
     fontSize: 16,
-    color: '#183F35',
+    color: COLORS.text,
     paddingVertical: 15,
+    fontWeight: '600',
   },
 
   registerButton: {
     height: 68,
     borderRadius: 34,
-    backgroundColor: '#123F32',
+    backgroundColor: COLORS.accent,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
-    shadowColor: '#123F32',
-    shadowOpacity: 0.22,
+    shadowColor: COLORS.accentDark,
+    shadowOpacity: 0.24,
     shadowRadius: 14,
     shadowOffset: {
       width: 0,
@@ -356,13 +347,13 @@ const styles = StyleSheet.create({
   },
 
   registerButtonDisabled: {
-    backgroundColor: '#6C8F83',
+    backgroundColor: '#DCCCF6',
   },
 
   registerButtonText: {
-    color: '#FFFFFF',
+    color: COLORS.white,
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '900',
   },
 
   bottomBlock: {
@@ -380,7 +371,7 @@ const styles = StyleSheet.create({
   divider: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(24, 63, 53, 0.22)',
+    backgroundColor: COLORS.border,
   },
 
   bottomLogo: {
@@ -390,13 +381,14 @@ const styles = StyleSheet.create({
   },
 
   loginText: {
-    color: '#35594F',
+    color: COLORS.textSoft,
     fontSize: 16,
     textAlign: 'center',
+    fontWeight: '600',
   },
 
   loginTextBold: {
-    color: '#FF5C68',
-    fontWeight: '800',
+    color: COLORS.accentDark,
+    fontWeight: '900',
   },
 });

@@ -10,11 +10,30 @@ import {
   ActivityIndicator,
   Platform,
   KeyboardAvoidingView,
+  ImageBackground,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const BASE_URL = 'http://192.168.0.59:3001';
+
+const chatBg = require('../assets/images/ФонГлав.jpg');
+
+const COLORS = {
+  background: '#F7F0FF',
+  cream: '#FFFFFF',
+  creamSoft: '#F7F0FF',
+  peach: '#FFE8E1',
+  peachLight: '#F7F0FF',
+  orange: '#C9A7FF',
+  orangeDark: '#A984E8',
+  coral: '#C9A7FF',
+  coralSoft: '#F7F0FF',
+  text: '#202020',
+  textSoft: '#6F6578',
+  border: '#EADDF8',
+  white: '#FFFFFF',
+};
 
 interface Message {
   id: string;
@@ -204,159 +223,180 @@ export default function PetAssistant({
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+    <ImageBackground
+      source={chatBg}
+      style={styles.background}
+      imageStyle={styles.backgroundImage}
+      resizeMode="cover"
     >
-      <View style={styles.header}>
-        <View style={styles.headerIconCircle}>
-          <Ionicons
-            name="chatbubble-ellipses-outline"
-            size={22}
-            color="#123F32"
-          />
-        </View>
-
-        <View style={styles.headerTextBlock}>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {chatTitle}
-          </Text>
-          <Text style={styles.headerSubtitle}>
-            ИИ-помощник по заботе о питомце
-          </Text>
-        </View>
-      </View>
-
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.chatContainer}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.chatContent}
-        keyboardShouldPersistTaps="handled"
-        onContentSizeChange={() => scrollToBottom(true)}
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
       >
-        {messages.length === 0 && (
-          <View style={styles.welcomeContainer}>
-            <View style={styles.welcomeIconCircle}>
-              <Ionicons name="paw-outline" size={36} color="#FFFFFF" />
-            </View>
+        <View style={styles.header}>
+          <View style={styles.headerIconCircle}>
+            <Ionicons
+              name="chatbubble-ellipses-outline"
+              size={22}
+              color={COLORS.orangeDark}
+            />
+          </View>
 
-            <Text style={styles.welcomeTitle}>Доктор Хвост</Text>
-
-            <Text style={styles.welcomeText}>
-              Задайте вопрос о здоровье, уходе или поведении питомца.
+          <View style={styles.headerTextBlock}>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {chatTitle}
             </Text>
 
-            <View style={styles.hintPill}>
-              <Text style={styles.hintText}>
-                Например: «Почему питомец мало ест?»
-              </Text>
-            </View>
+            <Text style={styles.headerSubtitle}>
+              ИИ-помощник по заботе о питомце
+            </Text>
           </View>
-        )}
+        </View>
 
-        {messages.map((msg) => (
-          <View
-            key={msg.id}
-            style={[
-              styles.messageRow,
-              msg.isUser ? styles.userMessageRow : styles.assistantMessageRow,
-            ]}
-          >
-            {!msg.isUser && (
-              <View style={styles.assistantAvatar}>
-                <Ionicons name="paw-outline" size={17} color="#FFFFFF" />
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.chatContainer}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.chatContent}
+          keyboardShouldPersistTaps="handled"
+          onContentSizeChange={() => scrollToBottom(true)}
+        >
+          {messages.length === 0 && (
+            <View style={styles.welcomeContainer}>
+              <View style={styles.welcomeIconCircle}>
+                <Ionicons name="paw-outline" size={36} color={COLORS.white} />
               </View>
-            )}
 
+              <Text style={styles.welcomeTitle}>Доктор Хвост</Text>
+
+              <Text style={styles.welcomeText}>
+                Задайте вопрос о здоровье, уходе или поведении питомца.
+              </Text>
+
+              <View style={styles.hintPill}>
+                <Text style={styles.hintText}>
+                  Например: «Почему питомец мало ест?»
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {messages.map((msg) => (
             <View
+              key={msg.id}
               style={[
-                styles.messageBubble,
-                msg.isUser ? styles.userBubble : styles.assistantBubble,
+                styles.messageRow,
+                msg.isUser ? styles.userMessageRow : styles.assistantMessageRow,
               ]}
             >
-              <Text
+              {!msg.isUser && (
+                <View style={styles.assistantAvatar}>
+                  <Ionicons name="paw-outline" size={17} color={COLORS.white} />
+                </View>
+              )}
+
+              <View
                 style={[
-                  styles.messageText,
-                  msg.isUser ? styles.userText : styles.assistantText,
+                  styles.messageBubble,
+                  msg.isUser ? styles.userBubble : styles.assistantBubble,
                 ]}
               >
-                {msg.text}
-              </Text>
+                <Text
+                  style={[
+                    styles.messageText,
+                    msg.isUser ? styles.userText : styles.assistantText,
+                  ]}
+                >
+                  {msg.text}
+                </Text>
 
-              <Text
-                style={[
-                  styles.messageTime,
-                  msg.isUser
-                    ? styles.userMessageTime
-                    : styles.assistantMessageTime,
-                ]}
-              >
-                {formatTime(msg.timestamp)}
-              </Text>
+                <Text
+                  style={[
+                    styles.messageTime,
+                    msg.isUser
+                      ? styles.userMessageTime
+                      : styles.assistantMessageTime,
+                  ]}
+                >
+                  {formatTime(msg.timestamp)}
+                </Text>
+              </View>
             </View>
+          ))}
+
+          {loading && (
+            <View style={styles.messageRow}>
+              <View style={styles.assistantAvatar}>
+                <Ionicons name="paw-outline" size={17} color={COLORS.white} />
+              </View>
+
+              <View style={styles.loadingBubble}>
+                <ActivityIndicator size="small" color={COLORS.orange} />
+                <Text style={styles.loadingText}>Доктор Хвост печатает...</Text>
+              </View>
+            </View>
+          )}
+        </ScrollView>
+
+        <View style={styles.bottomBlock}>
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Спросите о здоровье питомца..."
+              placeholderTextColor={COLORS.textSoft}
+              value={question}
+              onChangeText={(text) => {
+                setQuestion(text);
+                scrollToBottom(true);
+              }}
+              onFocus={() => scrollToBottom(true)}
+              multiline
+              maxLength={500}
+            />
+
+            <TouchableOpacity
+              style={[
+                styles.sendButton,
+                (!question.trim() || loading) && styles.sendButtonDisabled,
+              ]}
+              onPress={() => sendQuestion()}
+              disabled={!question.trim() || loading}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="arrow-up" size={22} color={COLORS.white} />
+            </TouchableOpacity>
           </View>
-        ))}
 
-        {loading && (
-          <View style={styles.messageRow}>
-            <View style={styles.assistantAvatar}>
-              <Ionicons name="paw-outline" size={17} color="#FFFFFF" />
-            </View>
-
-            <View style={styles.loadingBubble}>
-              <ActivityIndicator size="small" color="#123F32" />
-              <Text style={styles.loadingText}>Доктор Хвост печатает...</Text>
-            </View>
+          <View style={styles.disclaimerPill}>
+            <Ionicons
+              name="warning-outline"
+              size={13}
+              color={COLORS.orangeDark}
+            />
+            <Text style={styles.disclaimer}>
+              При серьёзных симптомах обратитесь к ветеринару
+            </Text>
           </View>
-        )}
-      </ScrollView>
-
-      <View style={styles.bottomBlock}>
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="Спросите о здоровье питомца..."
-            placeholderTextColor="#7A8F88"
-            value={question}
-            onChangeText={(text) => {
-              setQuestion(text);
-              scrollToBottom(true);
-            }}
-            onFocus={() => scrollToBottom(true)}
-            multiline
-            maxLength={500}
-          />
-
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              (!question.trim() || loading) && styles.sendButtonDisabled,
-            ]}
-            onPress={() => sendQuestion()}
-            disabled={!question.trim() || loading}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="arrow-up" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
         </View>
-
-        <View style={styles.disclaimerPill}>
-          <Ionicons name="warning-outline" size={13} color="#7A8F88" />
-          <Text style={styles.disclaimer}>
-            При серьёзных симптомах обратитесь к ветеринару
-          </Text>
-        </View>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  background: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+
+  backgroundImage: {
+    borderRadius: 30,
+  },
+
   container: {
     flex: 1,
-    backgroundColor: '#FF5C68',
+    backgroundColor: 'transparent',
   },
 
   header: {
@@ -366,17 +406,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 12,
-    backgroundColor: '#FF5C68',
+    backgroundColor: 'transparent',
   },
 
   headerIconCircle: {
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: '#F8FFD9',
+    backgroundColor: COLORS.white,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
 
   headerTextBlock: {
@@ -387,27 +429,26 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 24,
     fontWeight: '900',
-    color: '#FFFFFF',
+    color: COLORS.white,
     letterSpacing: -0.4,
   },
 
   headerSubtitle: {
     marginTop: 3,
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.88)',
-    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '700',
   },
 
   chatContainer: {
     flex: 1,
-    backgroundColor: '#FF5C68',
+    backgroundColor: 'transparent',
   },
 
   chatContent: {
     paddingHorizontal: 14,
     paddingTop: 16,
     paddingBottom: 18,
-    backgroundColor: '#FF5C68',
   },
 
   welcomeContainer: {
@@ -420,12 +461,12 @@ const styles = StyleSheet.create({
     width: 74,
     height: 74,
     borderRadius: 37,
-    backgroundColor: '#123F32',
+    backgroundColor: COLORS.orange,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
-    shadowColor: '#123F32',
-    shadowOpacity: 0.18,
+    shadowColor: COLORS.text,
+    shadowOpacity: 0.16,
     shadowRadius: 12,
     shadowOffset: {
       width: 0,
@@ -437,7 +478,7 @@ const styles = StyleSheet.create({
   welcomeTitle: {
     fontSize: 24,
     fontWeight: '900',
-    color: '#FFFFFF',
+    color: COLORS.white,
     marginBottom: 8,
     letterSpacing: -0.4,
   },
@@ -448,22 +489,23 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     color: 'rgba(255, 255, 255, 0.92)',
     textAlign: 'center',
+    fontWeight: '600',
   },
 
   hintPill: {
     marginTop: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
     borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.45)',
+    borderColor: COLORS.border,
   },
 
   hintText: {
     fontSize: 12,
-    color: '#123F32',
-    fontWeight: '700',
+    color: COLORS.text,
+    fontWeight: '800',
     textAlign: 'center',
   },
 
@@ -485,7 +527,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#123F32',
+    backgroundColor: COLORS.orange,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
@@ -500,16 +542,16 @@ const styles = StyleSheet.create({
   },
 
   userBubble: {
-    backgroundColor: '#123F32',
+    backgroundColor: COLORS.orange,
     borderBottomRightRadius: 7,
   },
 
   assistantBubble: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
     borderBottomLeftRadius: 7,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-    shadowColor: '#123F32',
+    borderColor: COLORS.border,
+    shadowColor: COLORS.text,
     shadowOpacity: 0.08,
     shadowRadius: 8,
     shadowOffset: {
@@ -525,13 +567,13 @@ const styles = StyleSheet.create({
   },
 
   userText: {
-    color: '#FFFFFF',
-    fontWeight: '500',
+    color: COLORS.white,
+    fontWeight: '600',
   },
 
   assistantText: {
-    color: '#123F32',
-    fontWeight: '500',
+    color: COLORS.text,
+    fontWeight: '600',
   },
 
   messageTime: {
@@ -541,21 +583,21 @@ const styles = StyleSheet.create({
   },
 
   userMessageTime: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: 'rgba(255, 255, 255, 0.72)',
   },
 
   assistantMessageTime: {
-    color: '#9BAE9E',
+    color: COLORS.textSoft,
   },
 
   loadingBubble: {
     maxWidth: '82%',
     minHeight: 46,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
     borderRadius: 22,
     borderBottomLeftRadius: 7,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
+    borderColor: COLORS.border,
     paddingHorizontal: 14,
     paddingVertical: 11,
     flexDirection: 'row',
@@ -565,12 +607,12 @@ const styles = StyleSheet.create({
 
   loadingText: {
     fontSize: 12,
-    color: '#35594F',
-    fontWeight: '600',
+    color: COLORS.textSoft,
+    fontWeight: '700',
   },
 
   bottomBlock: {
-    backgroundColor: '#FF5C68',
+    backgroundColor: 'transparent',
     paddingHorizontal: 12,
     paddingTop: 10,
     paddingBottom: Platform.OS === 'ios' ? 12 : 10,
@@ -580,14 +622,14 @@ const styles = StyleSheet.create({
     minHeight: 58,
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
     borderRadius: 30,
     paddingLeft: 16,
     paddingRight: 7,
     paddingVertical: 7,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.45)',
-    shadowColor: '#123F32',
+    borderColor: COLORS.border,
+    shadowColor: COLORS.text,
     shadowOpacity: 0.08,
     shadowRadius: 10,
     shadowOffset: {
@@ -605,20 +647,31 @@ const styles = StyleSheet.create({
     paddingRight: 10,
     fontSize: 14,
     lineHeight: 19,
-    color: '#123F32',
+    color: COLORS.text,
+    fontWeight: '600',
   },
 
   sendButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#123F32',
+    backgroundColor: COLORS.orange,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: COLORS.orangeDark,
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    shadowOffset: {
+      width: 0,
+      height: 5,
+    },
+    elevation: 4,
   },
 
   sendButtonDisabled: {
-    backgroundColor: '#FFC0C5',
+    backgroundColor: COLORS.peach,
+    shadowOpacity: 0,
+    elevation: 0,
   },
 
   disclaimerPill: {
@@ -626,19 +679,19 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: COLORS.white,
     borderRadius: 18,
     paddingHorizontal: 11,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.45)',
+    borderColor: COLORS.border,
     gap: 5,
   },
 
   disclaimer: {
     fontSize: 10,
-    color: '#7A8F88',
+    color: COLORS.textSoft,
     textAlign: 'center',
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

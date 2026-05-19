@@ -1,11 +1,20 @@
 // components/BottomNav.tsx
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  ImageBackground,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../src/hooks/AuthContext';
 import { AppScreen } from '../src/types/navigation';
 
 const BASE_URL = 'http://192.168.0.59:3001';
+
+const navBg = require('../assets/images/ФонГлав.jpg');
 
 interface BottomNavigationProps {
   currentScreen: AppScreen;
@@ -13,6 +22,14 @@ interface BottomNavigationProps {
 }
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
+const COLORS = {
+  panelFallback: '#EBC8B6',
+  active: '#FF9F1C',
+  activeDark: '#E97812',
+  white: '#FFFFFF',
+  text: '#2B251F',
+};
 
 export default function BottomNavigation({
   currentScreen,
@@ -47,7 +64,12 @@ export default function BottomNavigation({
 
   return (
     <View style={styles.navWrapper}>
-      <View style={styles.bottomNav}>
+      <ImageBackground
+        source={navBg}
+        style={styles.bottomNav}
+        imageStyle={styles.bottomNavImage}
+        resizeMode="cover"
+      >
         {navItems.map((item) => {
           const isActive = currentScreen === item.screen;
 
@@ -64,11 +86,7 @@ export default function BottomNavigation({
                   isActive && styles.activeIconCircle,
                 ]}
               >
-                <Ionicons
-                  name={item.icon}
-                  size={26}
-                  color="#FFFFFF"
-                />
+                <Ionicons name={item.icon} size={26} color={COLORS.white} />
               </View>
 
               <Text
@@ -97,15 +115,14 @@ export default function BottomNavigation({
             {displayAvatarUri ? (
               <Image
                 source={{ uri: displayAvatarUri }}
-                style={styles.profileAvatar}
+                style={[
+                  styles.profileAvatar,
+                  currentScreen === 'profile' && styles.activeProfileAvatar,
+                ]}
                 resizeMode="cover"
               />
             ) : (
-              <Ionicons
-                name="person-outline"
-                size={27}
-                color="#FFFFFF"
-              />
+              <Ionicons name="person-outline" size={27} color={COLORS.white} />
             )}
           </View>
 
@@ -118,7 +135,7 @@ export default function BottomNavigation({
             Профиль
           </Text>
         </TouchableOpacity>
-      </View>
+      </ImageBackground>
     </View>
   );
 }
@@ -138,11 +155,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FF5C68',
+    backgroundColor: COLORS.panelFallback,
     borderRadius: 34,
     paddingHorizontal: 10,
     paddingVertical: 10,
-    shadowColor: '#123F32',
+    overflow: 'hidden',
+    shadowColor: COLORS.text,
     shadowOpacity: 0.18,
     shadowRadius: 18,
     shadowOffset: {
@@ -150,6 +168,10 @@ const styles = StyleSheet.create({
       height: 10,
     },
     elevation: 8,
+  },
+
+  bottomNavImage: {
+    borderRadius: 34,
   },
 
   navButton: {
@@ -169,21 +191,29 @@ const styles = StyleSheet.create({
   },
 
   activeIconCircle: {
-    backgroundColor: '#123F32',
+    backgroundColor: COLORS.active,
+    shadowColor: COLORS.activeDark,
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    shadowOffset: {
+      width: 0,
+      height: 5,
+    },
+    elevation: 5,
   },
 
   navLabel: {
     fontSize: 11,
     lineHeight: 14,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    opacity: 0.84,
+    color: COLORS.white,
+    fontWeight: '700',
+    opacity: 0.9,
   },
 
   activeNavLabel: {
-    color: '#FFFFFF',
+    color: COLORS.white,
     opacity: 1,
-    fontWeight: '800',
+    fontWeight: '900',
   },
 
   profileAvatar: {
@@ -191,6 +221,10 @@ const styles = StyleSheet.create({
     height: 38,
     borderRadius: 19,
     borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderColor: COLORS.white,
+  },
+
+  activeProfileAvatar: {
+    borderColor: COLORS.white,
   },
 });
