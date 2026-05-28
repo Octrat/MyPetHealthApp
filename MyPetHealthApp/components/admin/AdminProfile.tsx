@@ -14,8 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/hooks/AuthContext';
-
-const BASE_URL = 'http://192.168.0.59:3001';
+import { BASE_URL } from '../../src/config/api';
 
 const cardBg = require('../../assets/images/ФонГлавБел.jpg');
 

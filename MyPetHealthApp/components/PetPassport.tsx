@@ -13,8 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const BASE_URL = 'http://192.168.0.59:3001';
+import { BASE_URL } from '../src/config/api';
 
 interface PetPassportProps {
   visible: boolean;

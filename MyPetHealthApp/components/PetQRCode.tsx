@@ -18,9 +18,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { captureRef } from 'react-native-view-shot';
 import * as MediaLibrary from 'expo-media-library';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const BASE_URL = 'http://192.168.0.59:3001';
-
+import { BASE_URL } from '../src/config/api';
 interface PetQRCodeProps {
   visible: boolean;
   pet: {

@@ -15,8 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const BASE_URL = 'http://192.168.0.59:3001';
+import { BASE_URL } from '../src/config/api';
 
 const cardBg = require('../assets/images/ФонГлавБел.jpg');
 

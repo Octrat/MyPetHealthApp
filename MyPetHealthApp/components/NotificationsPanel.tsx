@@ -14,8 +14,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Pet } from '../src/types';
-
-const BASE_URL = 'http://192.168.0.9:3001';
+import { BASE_URL } from '../src/config/api';
 
 interface NotificationsPanelProps {
   visible: boolean;

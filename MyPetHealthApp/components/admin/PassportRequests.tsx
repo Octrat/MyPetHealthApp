@@ -13,8 +13,7 @@ import {
   SafeAreaView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const BASE_URL = 'http://192.168.0.59:3001';
+import { BASE_URL } from '../../src/config/api';
 
 interface PassportRequest {
   id: number;

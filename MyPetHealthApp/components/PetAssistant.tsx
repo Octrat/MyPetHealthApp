@@ -15,7 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const BASE_URL = 'http://192.168.0.59:3001';
+import { BASE_URL } from '../src/config/api';
 
 const chatBg = require('../assets/images/ФонГлав.jpg');
 

@@ -17,8 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../src/hooks/AuthContext';
 import AdminProfile from './AdminProfile';
-
-const BASE_URL = 'http://192.168.0.59:3001';
+import { BASE_URL } from '../../src/config/api';
 
 const cardBg = require('../../assets/images/ФонГлавБел.jpg');
 const navBg = require('../../assets/images/ФонГлав.jpg');

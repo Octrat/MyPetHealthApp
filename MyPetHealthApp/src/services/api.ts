@@ -2,9 +2,10 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthResponse, LoginCredentials, RegisterData, User } from '../types';
+import { BASE_URL } from '../config/api';
 
 // Базовый URL нашего бэкенда
-const API_URL = 'http://192.168.0.59:3001/api';
+const API_URL = `${BASE_URL}/api`;
 console.log('API URL:', API_URL);
 
 const api = axios.create({

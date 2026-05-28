@@ -30,8 +30,7 @@ import PetPassport from './PetPassport';
 import PetPedigree from './PetPedigree';
 import NotificationsPanel from './NotificationsPanel';
 import BottomNav from './BottomNav';
-
-const BASE_URL = 'http://192.168.0.59:3001';
+import { BASE_URL } from '../src/config/api';
 
 const cardBg = require('../assets/images/ФонГлавБел.jpg');
 

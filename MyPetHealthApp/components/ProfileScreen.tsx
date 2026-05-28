@@ -19,9 +19,7 @@ import { useAuth } from '../src/hooks/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppScreen } from '../src/types/navigation';
 import BottomNavigation from './BottomNav';
-
-const BASE_URL = 'http://192.168.0.59:3001';
-
+import { BASE_URL } from '../src/config/api';
 const cardBg = require('../assets/images/ФонГлавБел.jpg');
 
 const COLORS = {

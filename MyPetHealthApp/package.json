@@ -24,11 +24,13 @@
     "expo-status-bar": "3.0.9",
     "multer": "^2.1.1",
     "react": "19.1.0",
+    "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-image-picker": "^8.2.1",
     "react-native-qrcode-svg": "^6.3.21",
     "react-native-safe-area-context": "5.6.0",
     "react-native-view-shot": "4.0.3",
+    "react-native-web": "^0.21.0",
     "undefined": "@react-native-async-storage/async-storageё"
   },
   "devDependencies": {

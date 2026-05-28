@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Asset } from 'expo-asset';
-
+import { BASE_URL } from './src/config/api';
 import AddPetScreen from './components/AddPetScreen';
 import SplashScreen from './components/SplashScreen';
 import LoginScreen from './components/LoginScreen';
@@ -31,7 +31,6 @@ import { petsAPI } from './src/services/api';
 import { Pet } from './src/types';
 import { AppScreen } from './src/types/navigation';
 
-const BASE_URL = 'http://192.168.0.59:3001';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
