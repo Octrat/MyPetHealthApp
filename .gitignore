@@ -1,21 +1,46 @@
-# Системные файлы macOS
-.DS_Store
-Icon\r
-
-# Архивы и логи
-*.zip
-*.log
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.env
-
-# Node.js (если есть)
+# Dependencies
 node_modules/
 
-# Docker
-docker-compose.override.yml
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+/ios
+/android
+
+# Metro
+.metro-health-check*
+
+# Debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+Icon
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# TypeScript
+*.tsbuildinfo
+
+# Logs
+*.log
+
+# Uploaded files
+backend/src/uploads/
 
