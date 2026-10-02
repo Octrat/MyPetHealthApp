@@ -128,10 +128,7 @@ router.post('/:id/qr-info', authenticateToken, async (req, res) => {
 // ПАСПОРТ ПИТОМЦА
 // =====================================================
 
-// -----------------------------------------------------
 // Получить паспорт питомца
-// -----------------------------------------------------
-
 router.get('/:id/passport', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
@@ -197,10 +194,7 @@ router.get('/:id/passport', authenticateToken, async (req, res) => {
   }
 });
 
-// -----------------------------------------------------
 // Сохранить / отправить паспорт на проверку
-// -----------------------------------------------------
-
 router.post('/:id/passport', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
@@ -451,11 +445,8 @@ router.post('/:id/passport', authenticateToken, async (req, res) => {
 // РОДОСЛОВНАЯ ПИТОМЦА
 // =====================================================
 
-// -----------------------------------------------------
 // Получить питомцев текущего пользователя,
 // которых можно добавить в родословную
-// -----------------------------------------------------
-
 router.get(
   '/:id/pedigree/available-pets',
   authenticateToken,
@@ -544,10 +535,7 @@ router.get(
   }
 );
 
-// -----------------------------------------------------
 // Получить родословную питомца
-// -----------------------------------------------------
-
 router.get(
   '/:id/pedigree',
   authenticateToken,
@@ -639,9 +627,7 @@ router.get(
 
       const rows = result.rows.map((row) => ({
         id: row.id,
-
         pet_id: row.pet_id,
-
         user_id: row.user_id,
 
         relative_pet_id:
@@ -672,7 +658,6 @@ router.get(
           row.relative_pet_id
             ? {
                 id: row.linked_pet_id,
-
                 name: row.linked_pet_name,
 
                 species:
@@ -720,9 +705,9 @@ router.get(
   }
 );
 
-// -----------------------------------------------------
-// Добавить родственника
-// -----------------------------------------------------
+// =====================================================
+// ДОБАВИТЬ РОДСТВЕННИКА
+// =====================================================
 
 router.post(
   '/:id/pedigree',
@@ -734,6 +719,13 @@ router.post(
       relative_pet_id,
       relative_type,
     } = req.body;
+
+    console.log('🐾 ADD PEDIGREE REQUEST:', {
+      petId: id,
+      userId: req.user?.userId,
+      relativePetId: relative_pet_id,
+      relativeType: relative_type,
+    });
 
     // ================================================
     // Проверяем обязательные поля
@@ -754,12 +746,37 @@ router.post(
     }
 
     // ================================================
+    // Приводим ID к числу
+    // ================================================
+
+    const relativePetId = Number(relative_pet_id);
+    const petId = Number(id);
+
+    if (
+      !Number.isInteger(relativePetId) ||
+      relativePetId <= 0
+    ) {
+      return res.status(400).json({
+        message:
+          'Некорректный идентификатор питомца-родственника',
+      });
+    }
+
+    if (
+      !Number.isInteger(petId) ||
+      petId <= 0
+    ) {
+      return res.status(400).json({
+        message:
+          'Некорректный идентификатор питомца',
+      });
+    }
+
+    // ================================================
     // Проверяем, что питомец не добавляет сам себя
     // ================================================
 
-    if (
-      Number(relative_pet_id) === Number(id)
-    ) {
+    if (relativePetId === petId) {
       return res.status(400).json({
         message:
           'Нельзя добавить самого питомца в его родословную',
@@ -796,7 +813,12 @@ router.post(
         WHERE id = $1
           AND user_id = $2
         `,
-        [id, req.user.userId]
+        [petId, req.user.userId]
+      );
+
+      console.log(
+        '🐾 MAIN PET CHECK:',
+        petCheck.rows.length
       );
 
       if (petCheck.rows.length === 0) {
@@ -808,10 +830,6 @@ router.post(
 
       // ==============================================
       // 2. Проверяем родственника
-      //
-      // ВАЖНО:
-      // родственник ОБЯЗАТЕЛЬНО должен принадлежать
-      // тому же пользователю
       // ==============================================
 
       const relativePetCheck =
@@ -833,10 +851,15 @@ router.post(
             AND user_id = $2
           `,
           [
-            relative_pet_id,
+            relativePetId,
             req.user.userId,
           ]
         );
+
+      console.log(
+        '🐾 RELATIVE PET CHECK:',
+        relativePetCheck.rows.length
+      );
 
       if (
         relativePetCheck.rows.length === 0
@@ -848,7 +871,7 @@ router.post(
       }
 
       // ==============================================
-      // 3. Проверяем, нет ли уже такой связи
+      // 3. Проверяем существующую связь
       // ==============================================
 
       const duplicateCheck =
@@ -864,12 +887,17 @@ router.post(
             AND user_id = $4
           `,
           [
-            id,
-            relative_pet_id,
+            petId,
+            relativePetId,
             relative_type,
             req.user.userId,
           ]
         );
+
+      console.log(
+        '🐾 DUPLICATE CHECK:',
+        duplicateCheck.rows
+      );
 
       if (duplicateCheck.rows.length > 0) {
         const existing =
@@ -906,6 +934,16 @@ router.post(
       // ==============================================
       // 4. Создаём заявку
       // ==============================================
+
+      console.log(
+        '🐾 INSERT INTO PET_PEDIGREE:',
+        {
+          petId,
+          userId: req.user.userId,
+          relativePetId,
+          relativeType: relative_type,
+        }
+      );
 
       const result = await pool.query(
         `
@@ -947,37 +985,120 @@ router.post(
           updated_at
         `,
         [
-          id,
+          petId,
           req.user.userId,
-          relative_pet_id,
+          relativePetId,
           relative_type,
         ]
       );
 
       console.log(
-        `Связь родословной ${result.rows[0].id} отправлена на проверку`
+        '✅ PEDIGREE CREATED:',
+        {
+          id: result.rows[0].id,
+          petId: result.rows[0].pet_id,
+          relativePetId:
+            result.rows[0].relative_pet_id,
+          relativeType:
+            result.rows[0].relative_type,
+          status:
+            result.rows[0].status,
+        }
       );
 
-      res.status(201).json(
+      return res.status(201).json(
         result.rows[0]
       );
     } catch (error) {
+      // ==============================================
+      // ПОДРОБНОЕ ЛОГИРОВАНИЕ ОШИБКИ POSTGRESQL
+      // ==============================================
+
       console.error(
-        'Ошибка добавления родственника:',
-        error
+        '❌❌❌ ОШИБКА ДОБАВЛЕНИЯ РОДСТВЕННИКА ❌❌❌'
       );
 
-      res.status(500).json({
+      console.error(
+        'message:',
+        error?.message
+      );
+
+      console.error(
+        'code:',
+        error?.code
+      );
+
+      console.error(
+        'detail:',
+        error?.detail
+      );
+
+      console.error(
+        'hint:',
+        error?.hint
+      );
+
+      console.error(
+        'constraint:',
+        error?.constraint
+      );
+
+      console.error(
+        'table:',
+        error?.table
+      );
+
+      console.error(
+        'column:',
+        error?.column
+      );
+
+      console.error(
+        'dataType:',
+        error?.dataType
+      );
+
+      console.error(
+        'where:',
+        error?.where
+      );
+
+      console.error(
+        'schema:',
+        error?.schema
+      );
+
+      console.error(
+        'stack:',
+        error?.stack
+      );
+
+      console.error(
+        'REQUEST DATA:',
+        {
+          petId,
+          userId: req.user?.userId,
+          relativePetId,
+          relativeType: relative_type,
+        }
+      );
+
+      return res.status(500).json({
         message:
           'Ошибка добавления родственника',
+
+        error:
+          process.env.NODE_ENV === 'development'
+            ? error?.message
+            : undefined,
       });
     }
   }
 );
 
-// -----------------------------------------------------
-// Повторная отправка отклонённой связи
-// -----------------------------------------------------
+// =====================================================
+// ПОВТОРНАЯ ОТПРАВКА ОТКЛОНЁННОЙ СВЯЗИ
+// =====================================================
 
 router.post(
   '/:id/pedigree/:relativeId/resubmit',
@@ -1109,11 +1230,40 @@ router.post(
         });
       }
 
-      res.json(result.rows[0]);
+      return res.json(result.rows[0]);
     } catch (error) {
       console.error(
-        'Ошибка повторной отправки родословной:',
-        error
+        '❌ Ошибка повторной отправки родословной'
+      );
+
+      console.error(
+        'message:',
+        error?.message
+      );
+
+      console.error(
+        'code:',
+        error?.code
+      );
+
+      console.error(
+        'detail:',
+        error?.detail
+      );
+
+      console.error(
+        'hint:',
+        error?.hint
+      );
+
+      console.error(
+        'constraint:',
+        error?.constraint
+      );
+
+      console.error(
+        'stack:',
+        error?.stack
       );
 
       res.status(500).json({
@@ -1124,9 +1274,9 @@ router.post(
   }
 );
 
-// -----------------------------------------------------
-// Удалить родственника
-// -----------------------------------------------------
+// =====================================================
+// УДАЛИТЬ РОДСТВЕННИКА
+// =====================================================
 
 router.delete(
   '/:id/pedigree/:relativeId',
@@ -1200,7 +1350,7 @@ router.delete(
         ]
       );
 
-      res.json({
+      return res.json({
         success: true,
       });
     } catch (error) {
