@@ -165,51 +165,48 @@ export default function PetAssistant({
 
       let endpoint = `${BASE_URL}/api/assistant/ask`;
 
-      if (currentPetId) {
-        endpoint = `${BASE_URL}/api/assistant/pet/${currentPetId}/ask`;
-      }
+if (currentPetId) {
+  endpoint = `${BASE_URL}/api/assistant/pet/${currentPetId}/ask`;
+}
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          question: questionText,
-          history,
-        }),
-      });
+console.log('🤖 AI REQUEST URL:', endpoint);
+console.log('🤖 AI QUESTION:', questionText);
+console.log('🤖 AI PET ID:', currentPetId);
 
-      const data = await response.json();
+const response = await fetch(endpoint, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  },
+  body: JSON.stringify({
+    question: questionText,
+    history,
+  }),
+});
 
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: data.answer || 'Извините, сейчас не могу ответить.',
-        isUser: false,
-        timestamp: new Date(),
-      };
+console.log('🤖 AI RESPONSE STATUS:', response.status);
 
-      const finalMessages = [...newMessages, aiMessage];
+const data = await response.json();
 
-      setMessages(finalMessages);
-      saveMessages(finalMessages);
-      scrollToBottom(true);
-    } catch (error) {
-      console.error('Ошибка:', error);
+console.log('🤖 AI RESPONSE DATA:', data);
 
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: 'Ошибка соединения. Проверьте интернет и попробуйте снова.',
-        isUser: false,
-        timestamp: new Date(),
-      };
+if (!response.ok) {
+  throw new Error(data.message || 'Ошибка получения ответа');
+}
 
-      const finalMessages = [...newMessages, errorMessage];
+const aiMessage: Message = {
+  id: (Date.now() + 1).toString(),
+  text: data.answer || 'Извините, сейчас не могу ответить.',
+  isUser: false,
+  timestamp: new Date(),
+};
 
-      setMessages(finalMessages);
-      saveMessages(finalMessages);
-      scrollToBottom(true);
+const finalMessages = [...newMessages, aiMessage];
+
+setMessages(finalMessages);
+saveMessages(finalMessages);
+scrollToBottom(true);
     } finally {
       setLoading(false);
     }

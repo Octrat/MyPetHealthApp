@@ -46,6 +46,7 @@ export default function RegisterScreen({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const [securePassword, setSecurePassword] = useState(true);
@@ -54,7 +55,7 @@ export default function RegisterScreen({
   const { register } = useAuth();
 
   const handleRegister = async () => {
-    if (!email || !password || !confirmPassword) {
+    if (!name || !email || !password || !confirmPassword) {
       Alert.alert('Ошибка', 'Пожалуйста, заполните все поля');
       return;
     }
@@ -67,7 +68,11 @@ export default function RegisterScreen({
     setIsLoading(true);
 
     try {
-      const data: RegisterData = { email, password };
+      const data: RegisterData = {
+        name,
+        email,
+        password,
+      };
       const result = await register(data);
 
       if (result.success) {
@@ -107,30 +112,55 @@ export default function RegisterScreen({
             </View>
 
             <ImageBackground
-              source={formBg}
-              style={styles.formCard}
-              imageStyle={styles.formCardImage}
-              resizeMode="cover"
-            >
-              <View style={styles.inputWrapper}>
-                <Ionicons
-                  name="mail-outline"
-                  size={22}
-                  color={COLORS.text}
-                  style={styles.inputIcon}
-                />
+  source={formBg}
+  style={styles.formCard}
+  imageStyle={styles.formCardImage}
+  resizeMode="cover"
+>
 
-                <TextInput
-                  placeholder="Электронная почта"
-                  placeholderTextColor={COLORS.textSoft}
-                  style={styles.inputInner}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  editable={!isLoading}
-                />
-              </View>
+  {/* ВОТ СЮДА ИМЯ */}
+
+  <View style={styles.inputWrapper}>
+    <Ionicons
+      name="person-outline"
+      size={22}
+      color={COLORS.text}
+      style={styles.inputIcon}
+    />
+
+    <TextInput
+      placeholder="Ваше имя"
+      placeholderTextColor={COLORS.textSoft}
+      style={styles.inputInner}
+      value={name}
+      onChangeText={setName}
+      autoCapitalize="words"
+      editable={!isLoading}
+    />
+  </View>
+
+
+  {/* Потом email */}
+
+  <View style={styles.inputWrapper}>
+    <Ionicons
+      name="mail-outline"
+      size={22}
+      color={COLORS.text}
+      style={styles.inputIcon}
+    />
+
+    <TextInput
+      placeholder="Электронная почта"
+      placeholderTextColor={COLORS.textSoft}
+      style={styles.inputInner}
+      value={email}
+      onChangeText={setEmail}
+      keyboardType="email-address"
+      autoCapitalize="none"
+      editable={!isLoading}
+    />
+  </View>
 
               <View style={styles.inputWrapper}>
                 <Ionicons

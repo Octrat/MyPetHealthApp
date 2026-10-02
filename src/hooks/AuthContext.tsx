@@ -105,6 +105,8 @@ const useAuthLogic = () => {
       });
 
       const result = await response.json();
+      console.log('LOGIN STATUS:', response.status);
+      console.log('LOGIN RESPONSE:', result);
 
       if (!response.ok) {
         return {
@@ -150,6 +152,7 @@ const useAuthLogic = () => {
         password: data.password,
         name: data.name,
       };
+      console.log('REGISTER PAYLOAD:', payload);
 
       const response = await fetch(`${AUTH_URL}/register`, {
         method: 'POST',
@@ -158,6 +161,9 @@ const useAuthLogic = () => {
       });
 
       const result = await response.json();
+
+      console.log('REGISTER STATUS:', response.status);
+      console.log('REGISTER RESPONSE:', result);
 
       if (!response.ok) {
         return {

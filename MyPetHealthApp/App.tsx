@@ -94,18 +94,23 @@ function MainApp() {
 
   const loadChats = async (): Promise<Chat[]> => {
     if (!user) return [];
-
+  
     try {
       const token = await AsyncStorage.getItem('userToken');
-
+  
       const response = await fetch(`${BASE_URL}/api/assistant/chats`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-
+  
       const data = await response.json();
-      return data;
+  
+      console.log('💬 CHAT RESPONSE STATUS:', response.status);
+      console.log('💬 CHAT RESPONSE DATA:', data);
+      console.log('💬 IS ARRAY:', Array.isArray(data));
+  
+      return Array.isArray(data) ? data : [];
     } catch (error) {
       console.error('Ошибка загрузки чатов:', error);
       return [];
