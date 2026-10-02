@@ -138,18 +138,37 @@ const getSexLabel = (sex?: string | null) => {
  * Безопасно читает ответ сервера.
  *
  * Если сервер вернул JSON — возвращаем объект.
- * Если сервер вернул HTML — выбрасываем понятную ошибку,
- * а не "Unexpected character: <".
+ * Если сервер вернул HTML — показываем тело ответа
+ * в консоли, чтобы можно было понять причину ошибки.
  */
 const readResponse = async (response: Response) => {
   const text = await response.text();
+
+  console.log(
+    '🌐 RESPONSE STATUS:',
+    response.status,
+  );
+
+  console.log(
+    '🌐 RESPONSE CONTENT-TYPE:',
+    response.headers.get('content-type'),
+  );
+
+  console.log(
+    '🌐 RESPONSE BODY:',
+    text.substring(0, 1000),
+  );
+
+  if (!text) {
+    return {};
+  }
 
   try {
     return JSON.parse(text);
   } catch {
     console.error(
-      'Сервер вернул не JSON:',
-      text.substring(0, 500),
+      '❌ Сервер вернул не JSON:',
+      text.substring(0, 1000),
     );
 
     throw new Error(
@@ -257,29 +276,15 @@ export default function PetPedigree({
   /**
    * Получаем питомцев, которых можно добавить
    * в качестве родственников.
-   *
-   * ВАЖНО:
-   * Если backend недоступен или возвращает HTML,
-   * используем pets из AddPetScreen.
    */
   const loadAvailablePets = async () => {
     if (!pet?.id) return;
 
-    /**
-     * Основной источник:
-     * питомцы, которые уже загрузил AddPetScreen.
-     */
     const fallbackPets = (pets || []).filter(
       (item) =>
         String(item.id) !== String(pet.id),
     );
 
-    /**
-     * Сразу устанавливаем их.
-     *
-     * Благодаря этому список родственников
-     * не зависит от отдельного GET-запроса.
-     */
     setAvailablePets(fallbackPets);
 
     try {
@@ -325,11 +330,6 @@ export default function PetPedigree({
       }
 
       if (Array.isArray(data)) {
-        /**
-         * Дополнительная защита:
-         * никогда не показываем текущего питомца
-         * в качестве собственного родственника.
-         */
         const filtered = data.filter(
           (item: Pet) =>
             String(item.id) !== String(pet.id),
@@ -343,12 +343,6 @@ export default function PetPedigree({
         error?.message,
       );
 
-      /**
-       * Backend мог вернуть HTML или временно быть
-       * недоступен.
-       *
-       * Поэтому оставляем уже загруженных питомцев.
-       */
       setAvailablePets(fallbackPets);
     }
   };
@@ -380,10 +374,6 @@ export default function PetPedigree({
   const openAddModal = () => {
     resetAddForm();
 
-    /**
-     * На всякий случай обновляем список
-     * из текущего состояния pets.
-     */
     if (pet) {
       const fallbackPets = (pets || []).filter(
         (item) =>
@@ -392,10 +382,6 @@ export default function PetPedigree({
 
       setAvailablePets(fallbackPets);
 
-      /**
-       * Затем пытаемся получить актуальный список
-       * с backend.
-       */
       loadAvailablePets();
     }
 

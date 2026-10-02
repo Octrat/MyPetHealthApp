@@ -1,3 +1,4 @@
+// backend/src/server.js
 import path from 'path';
 import express from 'express';
 import cors from 'cors';
@@ -15,6 +16,7 @@ import petsRoutes from './routes/pets.js';
 import avatarRoutes from './routes/avatar.js';
 import visionRoutes from './routes/vision.js';
 import adminRoutes from './routes/admin.js';
+import calendarRoutes from './routes/calendar.js';
 
 import { authenticateToken, requireAdmin } from './middleware/auth.js';
 import { testConnection } from './config/database.js';
@@ -22,7 +24,10 @@ import pool from './config/database.js';
 
 // ИМПОРТЫ ДЛЯ AI АССИСТЕНТА И РАСПОЗНАВАНИЯ ПОРОД
 import { askGemini, askGeminiWithContext } from './services/geminiService.js';
-import { recognizeBreedWithGemini, quickBreedRecognize } from './services/geminiVisionService.js';
+import {
+  recognizeBreedWithGemini,
+  quickBreedRecognize,
+} from './services/geminiVisionService.js';
 
 dotenv.config();
 
@@ -30,10 +35,9 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ============================================
-// 📧 НАСТРОЙКА EMAIL (отправитель из .env)
+// 📧 НАСТРОЙКА EMAIL
 // ============================================
 
-// Настройка email транспорта из переменных окружения
 let transporter;
 let emailConfigured = false;
 
@@ -46,58 +50,85 @@ const smtpConfig = {
   },
 };
 
-// Если есть настройки SMTP, создаём транспортер
 if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
   try {
     transporter = nodemailer.createTransport(smtpConfig);
     emailConfigured = true;
-    console.log('📧 Email transporter configured with SMTP:', process.env.SMTP_HOST);
+    console.log(
+      '📧 Email transporter configured with SMTP:',
+      process.env.SMTP_HOST
+    );
   } catch (error) {
     console.warn('⚠️ Failed to configure email transporter:', error.message);
   }
 } else {
-  console.log('📧 Email notifications disabled. Set SMTP_HOST, SMTP_USER, SMTP_PASS to enable.');
+  console.log(
+    '📧 Email notifications disabled. Set SMTP_HOST, SMTP_USER, SMTP_PASS to enable.'
+  );
 }
 
 // Проверка API ключей при запуске
 console.log('\n🔐 API Keys Check:');
-console.log(`   GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? '✅ Configured' : '❌ Missing'}`);
+console.log(
+  `   GEMINI_API_KEY: ${
+    process.env.GEMINI_API_KEY ? '✅ Configured' : '❌ Missing'
+  }`
+);
 console.log(`   GEMINI_API_KEY length: ${process.env.GEMINI_API_KEY?.length || 0}`);
+
 if (!process.env.GEMINI_API_KEY) {
-  console.warn('⚠️  WARNING: GEMINI_API_KEY is not set! Breed recognition will fail.');
+  console.warn(
+    '⚠️  WARNING: GEMINI_API_KEY is not set! Breed recognition will fail.'
+  );
 }
+
 console.log('');
 
-// Middleware
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-}));
+// ============================================
+// MIDDLEWARE
+// ============================================
 
-// ✅ УВЕЛИЧИВАЕМ ЛИМИТ ДЛЯ БОЛЬШИХ ФАЙЛОВ (аватары, фото)
+app.use(
+  cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  })
+);
+
+// Увеличенный лимит для аватаров, фото питомцев и изображений для распознавания
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Статические файлы для веб-страницы поиска питомца
 app.use(express.static(path.join(__dirname, '../../web')));
 
+// Логирование запросов
 app.use((req, res, next) => {
   console.log('➡️', req.method, req.url);
   next();
 });
+
+// Статические загруженные файлы
 app.use('/uploads', express.static(path.join(process.cwd(), 'src/uploads')));
 
-// Routes
+// ============================================
+// ROUTES
+// ============================================
+
 app.use('/api/auth', authRoutes);
 app.use('/api/user', authenticateToken, userRoutes);
 app.use('/api/pets', authenticateToken, petsRoutes);
 app.use('/api/user/avatar', authenticateToken, avatarRoutes);
 app.use('/api/vision', authenticateToken, visionRoutes);
 app.use('/api/admin', authenticateToken, adminRoutes);
+app.use('/api/calendar', authenticateToken, calendarRoutes);
 
-// Basic route
+// ============================================
+// BASIC ROUTES
+// ============================================
+
 app.get('/', (req, res) => {
-  res.json({ 
+  res.json({
     message: '🐾 PetHealth Backend is running!',
     version: '1.0.0',
     endpoints: {
@@ -105,6 +136,7 @@ app.get('/', (req, res) => {
       user: '/api/user',
       pets: '/api/pets',
       vision: '/api/vision',
+      calendar: '/api/calendar/events',
       assistant: '/api/assistant/ask',
       'assistant-pet': '/api/assistant/pet/:petId/ask',
       'assistant-chats': '/api/assistant/chats',
@@ -115,17 +147,17 @@ app.get('/', (req, res) => {
       'pet-reports': '/api/pets/:id/reports',
       'admin-stats': '/api/admin/stats',
       'admin-passports': '/api/admin/passports',
-    }
+    },
   });
 });
 
-// Health check
 app.get('/health', async (req, res) => {
   const dbStatus = await testConnection();
+
   res.json({
     status: 'OK',
     database: dbStatus ? 'Connected' : 'Disconnected',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -133,14 +165,13 @@ app.get('/health', async (req, res) => {
 // 🤖 ЭНДПОИНТЫ ДЛЯ AI АССИСТЕНТА
 // ============================================
 
-// Общий ассистент (без контекста питомца)
 app.post('/api/assistant/ask', authenticateToken, async (req, res) => {
   const { question, history } = req.body;
-  
+
   if (!question || question.trim().length === 0) {
     return res.status(400).json({ message: 'Напишите ваш вопрос' });
   }
-  
+
   try {
     const answer = await askGemini(question, history || []);
     res.json({ answer });
@@ -150,20 +181,19 @@ app.post('/api/assistant/ask', authenticateToken, async (req, res) => {
   }
 });
 
-// Ассистент для конкретного питомца (с контекстом)
 app.post('/api/assistant/pet/:petId/ask', authenticateToken, async (req, res) => {
   const { petId } = req.params;
   const { question, history } = req.body;
-  
+
   console.log('\n🐾 ========== AI ЗАПРОС ДЛЯ ПИТОМЦА ==========');
   console.log('📌 petId:', petId);
   console.log('❓ Вопрос:', question);
   console.log('👤 userId:', req.user?.userId);
-  
+
   if (!question || question.trim().length === 0) {
     return res.status(400).json({ message: 'Напишите ваш вопрос' });
   }
-  
+
   try {
     const petResult = await pool.query(
       `SELECT p.*, 
@@ -175,22 +205,32 @@ app.post('/api/assistant/pet/:petId/ask', authenticateToken, async (req, res) =>
        WHERE p.id = $1 AND p.user_id = $2`,
       [petId, req.user.userId]
     );
-    
+
     if (petResult.rows.length === 0) {
       console.log('❌ Питомец не найден!');
       return res.status(404).json({ message: 'Питомец не найден' });
     }
-    
+
     const pet = petResult.rows[0];
+
     console.log('🐕 Найден питомец:', pet.name, 'вид:', pet.species);
-    console.log('📊 Вес:', pet.weight, 'Возраст:', pet.age, 'Порода:', pet.breed_name);
-    
+    console.log(
+      '📊 Вес:',
+      pet.weight,
+      'Возраст:',
+      pet.age,
+      'Порода:',
+      pet.breed_name
+    );
+
     const petContext = `
 📋 ИНФОРМАЦИЯ О ПИТОМЦЕ:
 
 🐱 Имя: ${pet.name}
 📏 Вид: ${pet.species === 'dog' ? 'Собака 🐶' : 'Кошка 🐱'}
-🎀 Порода: ${pet.breed_name || 'Не указана'} ${pet.breed_name_ru ? `(${pet.breed_name_ru})` : ''}
+🎀 Порода: ${pet.breed_name || 'Не указана'} ${
+      pet.breed_name_ru ? `(${pet.breed_name_ru})` : ''
+    }
 🎂 Возраст: ${pet.age || 'Не указан'} лет
 ⚖️ Вес: ${pet.weight || 'Не указан'} кг
 📐 Рост: ${pet.height || 'Не указан'} см
@@ -199,19 +239,27 @@ app.post('/api/assistant/pet/:petId/ask', authenticateToken, async (req, res) =>
 ${pet.description ? `📝 Особенности: ${pet.description}` : ''}
 
 ⚠️ ВАЖНО: Это реальные данные питомца. Отвечай, ОБЯЗАТЕЛЬНО учитывая их!`;
-    
+
     console.log('📋 Контекст питомца создан, длина:', petContext.length);
-    
-    const answer = await askGeminiWithContext(question, petContext, history || []);
+
+    const answer = await askGeminiWithContext(
+      question,
+      petContext,
+      history || []
+    );
+
     console.log('💬 Ответ ассистента:', answer?.substring(0, 300));
     console.log('=====================================\n');
-    
-    res.json({ answer, petInfo: {
-      id: pet.id,
-      name: pet.name,
-      species: pet.species,
-      breed: pet.breed_name
-    } });
+
+    res.json({
+      answer,
+      petInfo: {
+        id: pet.id,
+        name: pet.name,
+        species: pet.species,
+        breed: pet.breed_name,
+      },
+    });
   } catch (error) {
     console.error('Ошибка в /api/assistant/pet/:petId/ask:', error);
     res.status(500).json({ message: 'Ошибка получения ответа' });
@@ -232,6 +280,7 @@ app.get('/api/assistant/chats', authenticateToken, async (req, res) => {
        ORDER BY c.updated_at DESC`,
       [req.user.userId]
     );
+
     res.json(result.rows);
   } catch (error) {
     console.error('Get chats error:', error);
@@ -241,6 +290,7 @@ app.get('/api/assistant/chats', authenticateToken, async (req, res) => {
 
 app.post('/api/assistant/chats', authenticateToken, async (req, res) => {
   const { petId, title } = req.body;
+
   try {
     const result = await pool.query(
       `INSERT INTO assistant_chats (user_id, pet_id, title, messages)
@@ -248,6 +298,7 @@ app.post('/api/assistant/chats', authenticateToken, async (req, res) => {
        RETURNING *`,
       [req.user.userId, petId || null, title || 'Новый чат', '[]']
     );
+
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Create chat error:', error);
@@ -255,72 +306,97 @@ app.post('/api/assistant/chats', authenticateToken, async (req, res) => {
   }
 });
 
-app.get('/api/assistant/chats/:chatId/messages', authenticateToken, async (req, res) => {
-  const { chatId } = req.params;
-  try {
-    const result = await pool.query(
-      `SELECT messages FROM assistant_chats 
-       WHERE id = $1 AND user_id = $2`,
-      [chatId, req.user.userId]
-    );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Чат не найден' });
+app.get(
+  '/api/assistant/chats/:chatId/messages',
+  authenticateToken,
+  async (req, res) => {
+    const { chatId } = req.params;
+
+    try {
+      const result = await pool.query(
+        `SELECT messages FROM assistant_chats 
+         WHERE id = $1 AND user_id = $2`,
+        [chatId, req.user.userId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'Чат не найден' });
+      }
+
+      res.json({ messages: result.rows[0].messages });
+    } catch (error) {
+      console.error('Get messages error:', error);
+      res.status(500).json({ message: 'Ошибка получения сообщений' });
     }
-    res.json({ messages: result.rows[0].messages });
-  } catch (error) {
-    console.error('Get messages error:', error);
-    res.status(500).json({ message: 'Ошибка получения сообщений' });
   }
-});
+);
 
-app.post('/api/assistant/chats/:chatId/messages', authenticateToken, async (req, res) => {
-  const { chatId } = req.params;
-  const { messages } = req.body;
-  try {
-    await pool.query(
-      `UPDATE assistant_chats 
-       SET messages = $1, updated_at = NOW() 
-       WHERE id = $2 AND user_id = $3`,
-      [JSON.stringify(messages), chatId, req.user.userId]
-    );
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Save messages error:', error);
-    res.status(500).json({ message: 'Ошибка сохранения' });
-  }
-});
+app.post(
+  '/api/assistant/chats/:chatId/messages',
+  authenticateToken,
+  async (req, res) => {
+    const { chatId } = req.params;
+    const { messages } = req.body;
 
-app.delete('/api/assistant/chats/:chatId', authenticateToken, async (req, res) => {
-  const { chatId } = req.params;
-  try {
-    await pool.query(
-      `DELETE FROM assistant_chats WHERE id = $1 AND user_id = $2`,
-      [chatId, req.user.userId]
-    );
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Delete chat error:', error);
-    res.status(500).json({ message: 'Ошибка удаления чата' });
-  }
-});
+    try {
+      await pool.query(
+        `UPDATE assistant_chats 
+         SET messages = $1, updated_at = NOW() 
+         WHERE id = $2 AND user_id = $3`,
+        [JSON.stringify(messages), chatId, req.user.userId]
+      );
 
-app.patch('/api/assistant/chats/:chatId', authenticateToken, async (req, res) => {
-  const { chatId } = req.params;
-  const { title } = req.body;
-  try {
-    const result = await pool.query(
-      `UPDATE assistant_chats 
-       SET title = $1, updated_at = NOW() 
-       WHERE id = $2 AND user_id = $3
-       RETURNING *`,
-      [title, chatId, req.user.userId]
-    );
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Update chat error:', error);
-    res.status(500).json({ message: 'Ошибка обновления чата' });
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Save messages error:', error);
+      res.status(500).json({ message: 'Ошибка сохранения' });
+    }
   }
-});
+);
+
+app.delete(
+  '/api/assistant/chats/:chatId',
+  authenticateToken,
+  async (req, res) => {
+    const { chatId } = req.params;
+
+    try {
+      await pool.query(
+        `DELETE FROM assistant_chats WHERE id = $1 AND user_id = $2`,
+        [chatId, req.user.userId]
+      );
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Delete chat error:', error);
+      res.status(500).json({ message: 'Ошибка удаления чата' });
+    }
+  }
+);
+
+app.patch(
+  '/api/assistant/chats/:chatId',
+  authenticateToken,
+  async (req, res) => {
+    const { chatId } = req.params;
+    const { title } = req.body;
+
+    try {
+      const result = await pool.query(
+        `UPDATE assistant_chats 
+         SET title = $1, updated_at = NOW() 
+         WHERE id = $2 AND user_id = $3
+         RETURNING *`,
+        [title, chatId, req.user.userId]
+      );
+
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Update chat error:', error);
+      res.status(500).json({ message: 'Ошибка обновления чата' });
+    }
+  }
+);
 
 // ============================================
 // 🐕 ЭНДПОИНТЫ ДЛЯ РАСПОЗНАВАНИЯ ПОРОД ЧЕРЕЗ GEMINI
@@ -329,38 +405,48 @@ app.patch('/api/assistant/chats/:chatId', authenticateToken, async (req, res) =>
 app.post('/api/vision/gemini-recognize', authenticateToken, async (req, res) => {
   try {
     const { image, species } = req.body;
-    
+
     if (!image) {
-      return res.status(400).json({ success: false, error: 'Изображение не предоставлено' });
+      return res.status(400).json({
+        success: false,
+        error: 'Изображение не предоставлено',
+      });
     }
-    
+
     const targetSpecies = species === 'cat' ? 'cat' : 'dog';
     const result = await recognizeBreedWithGemini(image, targetSpecies);
-    
+
     res.json(result);
-    
   } catch (error) {
     console.error('Ошибка в /api/vision/gemini-recognize:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
   }
 });
 
 app.post('/api/vision/quick-recognize', authenticateToken, async (req, res) => {
   try {
     const { image, species } = req.body;
-    
+
     if (!image) {
-      return res.status(400).json({ success: false, error: 'Изображение не предоставлено' });
+      return res.status(400).json({
+        success: false,
+        error: 'Изображение не предоставлено',
+      });
     }
-    
+
     const targetSpecies = species === 'cat' ? 'cat' : 'dog';
     const result = await quickBreedRecognize(image, targetSpecies);
-    
+
     res.json(result);
-    
   } catch (error) {
     console.error('Ошибка в /api/vision/quick-recognize:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
   }
 });
 
@@ -370,6 +456,7 @@ app.post('/api/vision/quick-recognize', authenticateToken, async (req, res) => {
 
 app.get('/api/public/pet/:id', async (req, res) => {
   const { id } = req.params;
+
   try {
     const petResult = await pool.query(
       `SELECT p.*, 
@@ -385,13 +472,13 @@ app.get('/api/public/pet/:id', async (req, res) => {
        WHERE p.id = $1`,
       [id]
     );
-    
+
     if (petResult.rows.length === 0) {
       return res.status(404).json({ message: 'Питомец не найден' });
     }
-    
+
     const pet = petResult.rows[0];
-    
+
     res.json({
       pet: {
         id: pet.id,
@@ -407,7 +494,7 @@ app.get('/api/public/pet/:id', async (req, res) => {
         phone: pet.contact_phone,
         address: pet.contact_address,
         email: pet.owner_email,
-      }
+      },
     });
   } catch (error) {
     console.error('Public pet info error:', error);
@@ -417,11 +504,11 @@ app.get('/api/public/pet/:id', async (req, res) => {
 
 app.post('/api/report-location', async (req, res) => {
   const { petId, latitude, longitude, timestamp } = req.body;
-  
+
   if (!petId || !latitude || !longitude) {
     return res.status(400).json({ message: 'Недостаточно данных' });
   }
-  
+
   try {
     const result = await pool.query(
       `INSERT INTO pet_reports (pet_id, latitude, longitude, reported_at, is_notified)
@@ -429,7 +516,7 @@ app.post('/api/report-location', async (req, res) => {
        RETURNING id`,
       [petId, latitude, longitude, timestamp || new Date(), false]
     );
-    
+
     const petOwner = await pool.query(
       `SELECT u.id, u.email, u.name as owner_name, p.name as pet_name, p.qr_phone
        FROM pets p
@@ -437,22 +524,27 @@ app.post('/api/report-location', async (req, res) => {
        WHERE p.id = $1`,
       [petId]
     );
-    
+
     if (petOwner.rows.length === 0) {
-      return res.status(404).json({ message: 'Питомец или владелец не найден' });
+      return res
+        .status(404)
+        .json({ message: 'Питомец или владелец не найден' });
     }
-    
+
     const owner = petOwner.rows[0];
+
     const googleMapsLink = `https://www.google.com/maps?q=${latitude},${longitude}`;
     const yandexMapsLink = `https://yandex.ru/maps/?pt=${longitude},${latitude}&z=15&l=map`;
-    
+
     let emailSent = false;
     let emailError = null;
-    
+
     if (emailConfigured && transporter && owner.email) {
       try {
         const mailOptions = {
-          from: `"${process.env.EMAIL_FROM_NAME || 'HealthyPaws'}" <${process.env.EMAIL_FROM_ADDRESS || 'noreply@healthypaws.com'}>`,
+          from: `"${process.env.EMAIL_FROM_NAME || 'HealthyPaws'}" <${
+            process.env.EMAIL_FROM_ADDRESS || 'noreply@healthypaws.com'
+          }>`,
           to: owner.email,
           subject: `📍 ВАЖНО: Ваш питомец ${owner.pet_name} был найден!`,
           html: `
@@ -478,12 +570,14 @@ app.post('/api/report-location', async (req, res) => {
               <hr style="margin: 20px 0;">
               <p style="color: #888; font-size: 12px;">Это письмо отправлено автоматически из приложения HealthyPaws.</p>
             </div>
-          `
+          `,
         };
-        
+
         const info = await transporter.sendMail(mailOptions);
         emailSent = true;
+
         console.log(`📧 Уведомление отправлено владельцу на ${owner.email}`);
+
         if (process.env.SMTP_HOST?.includes('ethereal')) {
           console.log(`   📬 Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
         }
@@ -492,20 +586,24 @@ app.post('/api/report-location', async (req, res) => {
         console.error('Email sending error:', emailError);
       }
     } else {
-      console.log(`⚠️ Email не отправлен (настроен: ${emailConfigured}, email: ${owner.email})`);
+      console.log(
+        `⚠️ Email не отправлен (настроен: ${emailConfigured}, email: ${owner.email})`
+      );
     }
-    
+
     await pool.query(
       `UPDATE pet_reports SET is_notified = $1 WHERE id = $2`,
       [emailSent, result.rows[0].id]
     );
-    
-    res.json({ 
-      success: true, 
-      message: emailSent ? 'Локация получена, владелец уведомлён' : 'Локация получена',
+
+    res.json({
+      success: true,
+      message: emailSent
+        ? 'Локация получена, владелец уведомлён'
+        : 'Локация получена',
       reportId: result.rows[0].id,
-      emailSent: emailSent,
-      emailError: emailError || undefined
+      emailSent,
+      emailError: emailError || undefined,
     });
   } catch (error) {
     console.error('Report location error:', error);
@@ -515,6 +613,7 @@ app.post('/api/report-location', async (req, res) => {
 
 app.get('/api/pets/:id/reports', authenticateToken, async (req, res) => {
   const { id } = req.params;
+
   try {
     const result = await pool.query(
       `SELECT id, latitude, longitude, reported_at, is_notified
@@ -523,6 +622,7 @@ app.get('/api/pets/:id/reports', authenticateToken, async (req, res) => {
        ORDER BY reported_at DESC`,
       [id]
     );
+
     res.json(result.rows);
   } catch (error) {
     console.error('Get reports error:', error);
@@ -534,12 +634,6 @@ app.get('/api/pets/:id/reports', authenticateToken, async (req, res) => {
 // 👑 АДМИН ЭНДПОИНТЫ
 // ============================================
 
-// Статистика для админ-панели
-// ============================================
-// 👑 АДМИН ЭНДПОИНТЫ
-// ============================================
-
-// Статистика для админ-панели
 app.get('/api/admin/stats', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const [totalUsers, totalPets, totalDogs, totalCats] = await Promise.all([
@@ -561,88 +655,115 @@ app.get('/api/admin/stats', authenticateToken, requireAdmin, async (req, res) =>
   }
 });
 
-// Получить все заявки на паспорта (исправленный)
-app.get('/api/admin/passports', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT p.id, p.name, p.species, p.breed_id,
-              b.name as breed_name,
-              u.email as owner_email, u.name as owner_name,
-              p.passport_number, p.passport_issued_by,
-              p.passport_chip_number, p.passport_color,
-              p.passport_character, p.passport_breeding_place,
-              p.passport_owner_name, p.passport_owner_phone,
-              p.passport_status
-       FROM pets p
-       LEFT JOIN breeds b ON p.breed_id = b.id
-       JOIN users u ON p.user_id = u.id
-       WHERE p.passport_status = 'pending'
-       ORDER BY p.id DESC`,
-      []
-    );
-    console.log('📋 Заявок в БД:', result.rows.length);
-    if (result.rows.length > 0) {
-      console.log('📋 Первая заявка:', result.rows[0]);
-    }
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Admin passports error:', error);
-    res.status(500).json({ message: 'Ошибка получения заявок' });
-  }
-});
+app.get(
+  '/api/admin/passports',
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        `SELECT p.id, p.name, p.species, p.breed_id,
+                b.name as breed_name,
+                u.email as owner_email, u.name as owner_name,
+                p.passport_number, p.passport_issued_by,
+                p.passport_chip_number, p.passport_color,
+                p.passport_character, p.passport_breeding_place,
+                p.passport_owner_name, p.passport_owner_phone,
+                p.passport_status
+         FROM pets p
+         LEFT JOIN breeds b ON p.breed_id = b.id
+         JOIN users u ON p.user_id = u.id
+         WHERE p.passport_status = 'pending'
+         ORDER BY p.id DESC`,
+        []
+      );
 
-// Одобрить/отклонить паспорт
-app.post('/api/admin/passports/:petId/review', authenticateToken, requireAdmin, async (req, res) => {
-  const { petId } = req.params;
-  const { status, comment } = req.body;
-  
-  console.log('📋 Обработка заявки для petId:', petId);
-  
-  // Проверка на undefined
-  if (!petId || petId === 'undefined') {
-    console.error('❌ petId не передан или равен undefined');
-    return res.status(400).json({ message: 'Не указан ID питомца' });
-  }
-  
-  try {
-    const result = await pool.query(
-      `UPDATE pets 
-       SET passport_status = $1, 
-           passport_review_comment = $2,
-           passport_reviewed_by = $3,
-           passport_reviewed_at = NOW()
-       WHERE id = $4
-       RETURNING id`,
-      [status, comment, req.user.userId, parseInt(petId)]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Питомец не найден' });
-    }
-    
-    console.log(`✅ Паспорт для питомца ID ${petId} ${status === 'approved' ? 'одобрен' : 'отклонён'}`);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Review passport error:', error);
-    res.status(500).json({ message: 'Ошибка обработки заявки' });
-  }
-});
+      console.log('📋 Заявок в БД:', result.rows.length);
 
-// Запуск сервера
+      if (result.rows.length > 0) {
+        console.log('📋 Первая заявка:', result.rows[0]);
+      }
+
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Admin passports error:', error);
+      res.status(500).json({ message: 'Ошибка получения заявок' });
+    }
+  }
+);
+
+app.post(
+  '/api/admin/passports/:petId/review',
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    const { petId } = req.params;
+    const { status, comment } = req.body;
+
+    console.log('📋 Обработка заявки для petId:', petId);
+
+    if (!petId || petId === 'undefined') {
+      console.error('❌ petId не передан или равен undefined');
+      return res.status(400).json({ message: 'Не указан ID питомца' });
+    }
+
+    try {
+      const result = await pool.query(
+        `UPDATE pets 
+         SET passport_status = $1, 
+             passport_review_comment = $2,
+             passport_reviewed_by = $3,
+             passport_reviewed_at = NOW()
+         WHERE id = $4
+         RETURNING id`,
+        [status, comment, req.user.userId, parseInt(petId)]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'Питомец не найден' });
+      }
+
+      console.log(
+        `✅ Паспорт для питомца ID ${petId} ${
+          status === 'approved' ? 'одобрен' : 'отклонён'
+        }`
+      );
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Review passport error:', error);
+      res.status(500).json({ message: 'Ошибка обработки заявки' });
+    }
+  }
+);
+
+// ============================================
+// ЗАПУСК СЕРВЕРА
+// ============================================
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Health check: http://0.0.0.0:${PORT}/health`);
   console.log(`🔗 Main page: http://127.0.0.1:${PORT}`);
   console.log(`🤖 AI Assistant: http://127.0.0.1:${PORT}/api/assistant/ask`);
-  console.log(`🎯 AI Assistant for Pet: http://127.0.0.1:${PORT}/api/assistant/pet/:petId/ask`);
+  console.log(
+    `🎯 AI Assistant for Pet: http://127.0.0.1:${PORT}/api/assistant/pet/:petId/ask`
+  );
   console.log(`💬 Assistant Chats: http://127.0.0.1:${PORT}/api/assistant/chats`);
-  console.log(`🐕 Breed Recognition (Gemini): http://127.0.0.1:${PORT}/api/vision/gemini-recognize`);
-  console.log(`⚡ Quick Breed Recognition: http://127.0.0.1:${PORT}/api/vision/quick-recognize`);
+  console.log(
+    `🐕 Breed Recognition (Gemini): http://127.0.0.1:${PORT}/api/vision/gemini-recognize`
+  );
+  console.log(
+    `⚡ Quick Breed Recognition: http://127.0.0.1:${PORT}/api/vision/quick-recognize`
+  );
   console.log(`👁️ Legacy Vision API: http://127.0.0.1:${PORT}/api/vision/test`);
+  console.log(`📅 Calendar Events: http://127.0.0.1:${PORT}/api/calendar/events`);
   console.log(`🔍 Public Pet API: http://127.0.0.1:${PORT}/api/public/pet/:id`);
   console.log(`📍 Report Location: http://127.0.0.1:${PORT}/api/report-location`);
   console.log(`📊 Admin Stats: http://127.0.0.1:${PORT}/api/admin/stats`);
   console.log(`📋 Admin Passports: http://127.0.0.1:${PORT}/api/admin/passports`);
-  console.log(`📧 Email notifications: ${emailConfigured ? '✅ Active' : '❌ Disabled'}`);
+  console.log(
+    `📧 Email notifications: ${emailConfigured ? '✅ Active' : '❌ Disabled'}`
+  );
 });
