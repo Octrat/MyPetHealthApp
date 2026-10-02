@@ -1,3 +1,4 @@
+
 // backend/src/routes/pets.js
 
 import { Router } from 'express';
@@ -454,8 +455,6 @@ router.get(
     const { id } = req.params;
 
     try {
-      // Проверяем, что основной питомец принадлежит
-      // текущему пользователю
       const petCheck = await pool.query(
         `
         SELECT id
@@ -472,8 +471,6 @@ router.get(
         });
       }
 
-      // Получаем всех питомцев пользователя,
-      // кроме текущего
       const result = await pool.query(
         `
         SELECT
@@ -535,7 +532,10 @@ router.get(
   }
 );
 
+// -----------------------------------------------------
 // Получить родословную питомца
+// -----------------------------------------------------
+
 router.get(
   '/:id/pedigree',
   authenticateToken,
@@ -551,7 +551,6 @@ router.get(
     );
 
     try {
-      // Проверяем основного питомца
       const petCheck = await pool.query(
         `
         SELECT id
@@ -576,6 +575,12 @@ router.get(
           pp.user_id,
           pp.relative_pet_id,
           pp.relative_type,
+          pp.relative_name,
+          pp.species,
+          pp.breed,
+          pp.sex,
+          pp.birth_date,
+
           pp.status,
           pp.review_comment,
           pp.reviewed_by,
@@ -636,6 +641,21 @@ router.get(
         relative_type:
           row.relative_type,
 
+        relative_name:
+          row.relative_name || null,
+
+        species:
+          row.species || null,
+
+        breed:
+          row.breed || null,
+
+        sex:
+          row.sex || null,
+
+        birth_date:
+          row.birth_date || null,
+
         status:
           row.status || 'not_submitted',
 
@@ -658,16 +678,26 @@ router.get(
           row.relative_pet_id
             ? {
                 id: row.linked_pet_id,
-                name: row.linked_pet_name,
+
+                name:
+                  row.linked_pet_name ||
+                  row.relative_name ||
+                  null,
 
                 species:
-                  row.linked_pet_species,
+                  row.linked_pet_species ||
+                  row.species ||
+                  null,
 
                 sex:
-                  row.linked_pet_sex,
+                  row.linked_pet_sex ||
+                  row.sex ||
+                  null,
 
                 birth_date:
-                  row.linked_pet_birth_date,
+                  row.linked_pet_birth_date ||
+                  row.birth_date ||
+                  null,
 
                 age:
                   row.linked_pet_age,
@@ -682,10 +712,13 @@ router.get(
                   row.linked_pet_photo_url,
 
                 breed_name:
-                  row.linked_pet_breed,
+                  row.linked_pet_breed ||
+                  row.breed ||
+                  null,
 
                 breed_name_ru:
-                  row.linked_pet_breed_ru,
+                  row.linked_pet_breed_ru ||
+                  null,
               }
             : null,
       }));
@@ -720,12 +753,15 @@ router.post(
       relative_type,
     } = req.body;
 
-    console.log('🐾 ADD PEDIGREE REQUEST:', {
-      petId: id,
-      userId: req.user?.userId,
-      relativePetId: relative_pet_id,
-      relativeType: relative_type,
-    });
+    console.log(
+      '🐾 ADD PEDIGREE REQUEST:',
+      {
+        petId: id,
+        userId: req.user?.userId,
+        relativePetId: relative_pet_id,
+        relativeType: relative_type,
+      }
+    );
 
     // ================================================
     // Проверяем обязательные поля
@@ -749,8 +785,11 @@ router.post(
     // Приводим ID к числу
     // ================================================
 
-    const relativePetId = Number(relative_pet_id);
-    const petId = Number(id);
+    const relativePetId =
+      Number(relative_pet_id);
+
+    const petId =
+      Number(id);
 
     if (
       !Number.isInteger(relativePetId) ||
@@ -773,7 +812,7 @@ router.post(
     }
 
     // ================================================
-    // Проверяем, что питомец не добавляет сам себя
+    // Нельзя добавить самого себя
     // ================================================
 
     if (relativePetId === petId) {
@@ -782,6 +821,10 @@ router.post(
           'Нельзя добавить самого питомца в его родословную',
       });
     }
+
+    // ================================================
+    // Допустимые типы родства
+    // ================================================
 
     const allowedTypes = [
       'mother',
@@ -813,7 +856,10 @@ router.post(
         WHERE id = $1
           AND user_id = $2
         `,
-        [petId, req.user.userId]
+        [
+          petId,
+          req.user.userId,
+        ]
       );
 
       console.log(
@@ -829,26 +875,34 @@ router.post(
       }
 
       // ==============================================
-      // 2. Проверяем родственника
+      // 2. Получаем выбранного родственника
       // ==============================================
 
       const relativePetCheck =
         await pool.query(
           `
           SELECT
-            id,
-            name,
-            species,
-            sex,
-            birth_date,
-            age,
-            weight,
-            height,
-            photo_url,
-            breed_id
-          FROM pets
-          WHERE id = $1
-            AND user_id = $2
+            p.id,
+            p.name,
+            p.species,
+            p.sex,
+            p.birth_date,
+            p.age,
+            p.weight,
+            p.height,
+            p.photo_url,
+            p.breed_id,
+
+            b.name AS breed_name,
+            b.name_ru AS breed_name_ru
+
+          FROM pets p
+
+          LEFT JOIN breeds b
+            ON p.breed_id = b.id
+
+          WHERE p.id = $1
+            AND p.user_id = $2
           `,
           [
             relativePetId,
@@ -870,8 +924,55 @@ router.post(
         });
       }
 
+      const relativePet =
+        relativePetCheck.rows[0];
+
       // ==============================================
-      // 3. Проверяем существующую связь
+      // 3. Получаем данные родственника
+      //
+      // relative_name в таблице pet_pedigree
+      // является NOT NULL, поэтому обязательно
+      // сохраняем имя выбранного питомца.
+      // ==============================================
+
+      const relativeName =
+        relativePet.name?.trim();
+
+      const relativeSpecies =
+        relativePet.species || null;
+
+      const relativeBreed =
+        relativePet.breed_name_ru ||
+        relativePet.breed_name ||
+        null;
+
+      const relativeSex =
+        relativePet.sex || null;
+
+      const relativeBirthDate =
+        relativePet.birth_date || null;
+
+      console.log(
+        '🐾 RELATIVE PET DATA:',
+        {
+          id: relativePet.id,
+          name: relativeName,
+          species: relativeSpecies,
+          breed: relativeBreed,
+          sex: relativeSex,
+          birthDate: relativeBirthDate,
+        }
+      );
+
+      if (!relativeName) {
+        return res.status(400).json({
+          message:
+            'У выбранного питомца не указано имя',
+        });
+      }
+
+      // ==============================================
+      // 4. Проверяем существующую связь
       // ==============================================
 
       const duplicateCheck =
@@ -899,7 +1000,9 @@ router.post(
         duplicateCheck.rows
       );
 
-      if (duplicateCheck.rows.length > 0) {
+      if (
+        duplicateCheck.rows.length > 0
+      ) {
         const existing =
           duplicateCheck.rows[0];
 
@@ -932,7 +1035,7 @@ router.post(
       }
 
       // ==============================================
-      // 4. Создаём заявку
+      // 5. Создаём заявку
       // ==============================================
 
       console.log(
@@ -942,6 +1045,11 @@ router.post(
           userId: req.user.userId,
           relativePetId,
           relativeType: relative_type,
+          relativeName,
+          relativeSpecies,
+          relativeBreed,
+          relativeSex,
+          relativeBirthDate,
         }
       );
 
@@ -950,24 +1058,44 @@ router.post(
         INSERT INTO pet_pedigree (
           pet_id,
           user_id,
-          relative_pet_id,
+
           relative_type,
+          relative_name,
+
+          species,
+          breed,
+          sex,
+          birth_date,
+
+          relative_pet_id,
+
           status,
           review_comment,
           reviewed_by,
           reviewed_at,
+
           created_at,
           updated_at
         )
         VALUES (
           $1,
           $2,
+
           $3,
           $4,
+
+          $5,
+          $6,
+          $7,
+          $8,
+
+          $9,
+
           'pending',
           NULL,
           NULL,
           NULL,
+
           NOW(),
           NOW()
         )
@@ -975,20 +1103,38 @@ router.post(
           id,
           pet_id,
           user_id,
-          relative_pet_id,
+
           relative_type,
+          relative_name,
+
+          species,
+          breed,
+          sex,
+          birth_date,
+
+          relative_pet_id,
+
           status,
           review_comment,
           reviewed_by,
           reviewed_at,
+
           created_at,
           updated_at
         `,
         [
           petId,
           req.user.userId,
-          relativePetId,
+
           relative_type,
+          relativeName,
+
+          relativeSpecies,
+          relativeBreed,
+          relativeSex,
+          relativeBirthDate,
+
+          relativePetId,
         ]
       );
 
@@ -996,11 +1142,19 @@ router.post(
         '✅ PEDIGREE CREATED:',
         {
           id: result.rows[0].id,
-          petId: result.rows[0].pet_id,
+
+          petId:
+            result.rows[0].pet_id,
+
           relativePetId:
             result.rows[0].relative_pet_id,
+
+          relativeName:
+            result.rows[0].relative_name,
+
           relativeType:
             result.rows[0].relative_type,
+
           status:
             result.rows[0].status,
         }
@@ -1010,10 +1164,6 @@ router.post(
         result.rows[0]
       );
     } catch (error) {
-      // ==============================================
-      // ПОДРОБНОЕ ЛОГИРОВАНИЕ ОШИБКИ POSTGRESQL
-      // ==============================================
-
       console.error(
         '❌❌❌ ОШИБКА ДОБАВЛЕНИЯ РОДСТВЕННИКА ❌❌❌'
       );
@@ -1128,8 +1278,32 @@ router.post(
       });
     }
 
+    const petId = Number(id);
+    const relativePetId =
+      Number(relative_pet_id);
+
     if (
-      Number(relative_pet_id) === Number(id)
+      !Number.isInteger(petId) ||
+      petId <= 0
+    ) {
+      return res.status(400).json({
+        message:
+          'Некорректный идентификатор питомца',
+      });
+    }
+
+    if (
+      !Number.isInteger(relativePetId) ||
+      relativePetId <= 0
+    ) {
+      return res.status(400).json({
+        message:
+          'Некорректный идентификатор питомца-родственника',
+      });
+    }
+
+    if (
+      relativePetId === petId
     ) {
       return res.status(400).json({
         message:
@@ -1137,8 +1311,29 @@ router.post(
       });
     }
 
+    const allowedTypes = [
+      'mother',
+      'father',
+      'grandmother',
+      'grandfather',
+      'daughter',
+      'son',
+      'sister',
+      'brother',
+    ];
+
+    if (!allowedTypes.includes(relative_type)) {
+      return res.status(400).json({
+        message:
+          'Недопустимый тип родства',
+      });
+    }
+
     try {
-      // Проверяем основного питомца
+      // ==============================================
+      // 1. Проверяем основного питомца
+      // ==============================================
+
       const petCheck = await pool.query(
         `
         SELECT id
@@ -1146,7 +1341,10 @@ router.post(
         WHERE id = $1
           AND user_id = $2
         `,
-        [id, req.user.userId]
+        [
+          petId,
+          req.user.userId,
+        ]
       );
 
       if (petCheck.rows.length === 0) {
@@ -1156,17 +1354,33 @@ router.post(
         });
       }
 
-      // Проверяем выбранного родственника
+      // ==============================================
+      // 2. Получаем данные выбранного родственника
+      // ==============================================
+
       const relativePetCheck =
         await pool.query(
           `
-          SELECT id
-          FROM pets
-          WHERE id = $1
-            AND user_id = $2
+          SELECT
+            p.id,
+            p.name,
+            p.species,
+            p.sex,
+            p.birth_date,
+
+            b.name AS breed_name,
+            b.name_ru AS breed_name_ru
+
+          FROM pets p
+
+          LEFT JOIN breeds b
+            ON p.breed_id = b.id
+
+          WHERE p.id = $1
+            AND p.user_id = $2
           `,
           [
-            relative_pet_id,
+            relativePetId,
             req.user.userId,
           ]
         );
@@ -1180,13 +1394,54 @@ router.post(
         });
       }
 
-      // Обновляем только отклонённую заявку
+      const relativePet =
+        relativePetCheck.rows[0];
+
+      // ==============================================
+      // 3. Подготавливаем данные родственника
+      // ==============================================
+
+      const relativeName =
+        relativePet.name?.trim();
+
+      const relativeSpecies =
+        relativePet.species || null;
+
+      const relativeBreed =
+        relativePet.breed_name_ru ||
+        relativePet.breed_name ||
+        null;
+
+      const relativeSex =
+        relativePet.sex || null;
+
+      const relativeBirthDate =
+        relativePet.birth_date || null;
+
+      if (!relativeName) {
+        return res.status(400).json({
+          message:
+            'У выбранного питомца не указано имя',
+        });
+      }
+
+      // ==============================================
+      // 4. Обновляем только отклонённую заявку
+      // ==============================================
+
       const result = await pool.query(
         `
         UPDATE pet_pedigree
         SET
           relative_pet_id = $1,
+
           relative_type = $2,
+          relative_name = $3,
+
+          species = $4,
+          breed = $5,
+          sex = $6,
+          birth_date = $7,
 
           status = 'pending',
 
@@ -1196,29 +1451,47 @@ router.post(
 
           updated_at = NOW()
 
-        WHERE id = $3
-          AND pet_id = $4
-          AND user_id = $5
+        WHERE id = $8
+          AND pet_id = $9
+          AND user_id = $10
           AND status = 'rejected'
 
         RETURNING
           id,
           pet_id,
           user_id,
-          relative_pet_id,
+
           relative_type,
+          relative_name,
+
+          species,
+          breed,
+          sex,
+          birth_date,
+
+          relative_pet_id,
+
           status,
           review_comment,
           reviewed_by,
           reviewed_at,
+
           created_at,
           updated_at
         `,
         [
-          relative_pet_id,
+          relativePetId,
+
           relative_type,
+          relativeName,
+
+          relativeSpecies,
+          relativeBreed,
+          relativeSex,
+          relativeBirthDate,
+
           relativeId,
-          id,
+          petId,
           req.user.userId,
         ]
       );
@@ -1230,10 +1503,31 @@ router.post(
         });
       }
 
-      return res.json(result.rows[0]);
+      console.log(
+        '✅ PEDIGREE RESUBMITTED:',
+        {
+          id: result.rows[0].id,
+
+          relativePetId:
+            result.rows[0].relative_pet_id,
+
+          relativeName:
+            result.rows[0].relative_name,
+
+          relativeType:
+            result.rows[0].relative_type,
+
+          status:
+            result.rows[0].status,
+        }
+      );
+
+      return res.json(
+        result.rows[0]
+      );
     } catch (error) {
       console.error(
-        '❌ Ошибка повторной отправки родословной'
+        '❌ ОШИБКА ПОВТОРНОЙ ОТПРАВКИ РОДОСЛОВНОЙ'
       );
 
       console.error(
@@ -1262,11 +1556,21 @@ router.post(
       );
 
       console.error(
+        'table:',
+        error?.table
+      );
+
+      console.error(
+        'column:',
+        error?.column
+      );
+
+      console.error(
         'stack:',
         error?.stack
       );
 
-      res.status(500).json({
+      return res.status(500).json({
         message:
           'Ошибка повторной отправки связи',
       });
@@ -1288,7 +1592,6 @@ router.delete(
     } = req.params;
 
     try {
-      // Получаем запись
       const existing = await pool.query(
         `
         SELECT
@@ -1316,7 +1619,6 @@ router.delete(
       const status =
         existing.rows[0].status;
 
-      // Pending и approved блокируем
       if (
         status === 'pending'
       ) {
@@ -1335,7 +1637,6 @@ router.delete(
         });
       }
 
-      // rejected / not_submitted можно удалить
       await pool.query(
         `
         DELETE FROM pet_pedigree
