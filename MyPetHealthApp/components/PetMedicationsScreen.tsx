@@ -20,7 +20,7 @@ import { useAuth } from '../src/hooks/AuthContext';
 import { AppScreen } from '../src/types/navigation';
 import BottomNav from './BottomNav';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Calendar from 'expo-calendar';
+import * as Calendar from 'expo-calendar/legacy';
 import { BASE_URL } from '../src/config/api';
 
 const cardBg = require('../assets/images/ФонГлавБел.jpg');
@@ -50,7 +50,7 @@ interface PetMedicationsScreenProps {
 
 interface CalendarEvent {
   id: string;
-  petId: number;
+  petId: number | null;
   petName?: string;
   title: string;
   description: string;
@@ -106,7 +106,10 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
 }) => {
   const { user } = useAuth();
 
-  const [selectedPet, setSelectedPet] = useState<Pet | null>(pets[0] || null);
+  const [selectedPet, setSelectedPet] = useState<Pet | null>(
+    pets[0] || null
+  );
+
   const [currentDate, setCurrentDate] = useState(new Date());
   const [calendarDays, setCalendarDays] = useState<Date[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -117,13 +120,18 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
   const [newEventDescription, setNewEventDescription] = useState('');
   const [newEventType, setNewEventType] =
     useState<CalendarEvent['type']>('reminder');
+
   const [newEventPetId, setNewEventPetId] = useState<number | null>(
     selectedPet?.id || null
   );
+
   const [newEventTime, setNewEventTime] = useState('12:00');
   const [newEventReminder, setNewEventReminder] = useState(true);
   const [exportToPhone, setExportToPhone] = useState(false);
   const [calendarPermission, setCalendarPermission] = useState(false);
+
+  // Защита от повторного нажатия "Сохранить"
+  const [isSavingEvent, setIsSavingEvent] = useState(false);
 
   useEffect(() => {
     checkCalendarPermission();
@@ -136,30 +144,46 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
     }
   }, [pets, selectedPet]);
 
+  // ======================================================
+  // ВАЖНО:
+  // Календарь всегда общий.
+  // selectedPet НЕ используется для загрузки событий.
+  // ======================================================
   useEffect(() => {
-    if (selectedPet) {
-      loadEvents();
-      setNewEventPetId(selectedPet.id);
-    }
-  }, [selectedPet]);
+    loadEvents();
+  }, []);
 
   useEffect(() => {
     generateCalendarDays();
   }, [currentDate]);
 
   const checkCalendarPermission = async () => {
-    const { status } = await Calendar.requestCalendarPermissionsAsync();
-    setCalendarPermission(status === 'granted');
+    try {
+      const { status } = await Calendar.requestCalendarPermissionsAsync();
+
+      setCalendarPermission(status === 'granted');
+    } catch (error) {
+      console.error('❌ Ошибка разрешения календаря:', error);
+      setCalendarPermission(false);
+    }
   };
 
+  // ======================================================
+  // ЗАГРУЗКА ВСЕХ СОБЫТИЙ
+  // ======================================================
   const loadEvents = async () => {
-    if (!selectedPet) return;
-
     try {
       const token = await AsyncStorage.getItem('userToken');
 
+      if (!token) {
+        console.error('❌ Токен пользователя отсутствует');
+        return;
+      }
+
+      // Никакого ?petId=...
+      // Загружаем общий календарь пользователя.
       const response = await fetch(
-        `${BASE_URL}/api/calendar/events?petId=${selectedPet.id}`,
+        `${BASE_URL}/api/calendar/events`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -167,12 +191,21 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
         }
       );
 
+      const data = await response.json().catch(() => null);
+
+      console.log('📅 LOAD CALENDAR EVENTS STATUS:', response.status);
+      console.log('📅 LOAD CALENDAR EVENTS DATA:', data);
+
       if (response.ok) {
-        const data = await response.json();
-        setEvents(data);
+        setEvents(Array.isArray(data) ? data : []);
+      } else {
+        console.error(
+          '❌ Ошибка загрузки событий:',
+          data?.message || 'Неизвестная ошибка'
+        );
       }
     } catch (error) {
-      console.error('Ошибка загрузки событий:', error);
+      console.error('❌ Ошибка загрузки событий:', error);
     }
   };
 
@@ -182,6 +215,7 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
 
     const firstDay = new Date(year, month, 1);
     let startDayOfWeek = firstDay.getDay();
+
     startDayOfWeek = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
 
     const lastDay = new Date(year, month + 1, 0);
@@ -210,23 +244,28 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
 
   const changeMonth = (increment: number) => {
     const newDate = new Date(currentDate);
+
     newDate.setMonth(currentDate.getMonth() + increment);
+
     setCurrentDate(newDate);
   };
 
   const goToToday = () => {
     const today = new Date();
+
     setCurrentDate(today);
     setSelectedDate(today);
   };
 
   const getEventsForDate = (date: Date): CalendarEvent[] => {
     const dateStr = date.toISOString().split('T')[0];
+
     return events.filter((e) => e.date === dateStr);
   };
 
   const isToday = (date: Date): boolean => {
     const today = new Date();
+
     return date.toDateString() === today.toDateString();
   };
 
@@ -238,7 +277,9 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
     return date.getMonth() === currentDate.getMonth();
   };
 
-  const exportToSystemCalendar = async (event: CalendarEvent) => {
+  const exportToSystemCalendar = async (
+    event: CalendarEvent
+  ): Promise<boolean> => {
     if (!calendarPermission) {
       Alert.alert(
         'Нужно разрешение',
@@ -260,16 +301,25 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
 
     try {
       const defaultCalendar = await Calendar.getDefaultCalendarAsync();
+
       const eventDate = new Date(event.date);
-      const [hours, minutes] = (event.time || '12:00').split(':').map(Number);
+
+      const [hours, minutes] = (event.time || '12:00')
+        .split(':')
+        .map(Number);
 
       eventDate.setHours(hours, minutes);
 
       const calendarEvent = {
         title: `${EVENT_LABELS[event.type]}: ${event.title}`,
         notes: event.description,
+
         startDate: eventDate,
-        endDate: new Date(eventDate.getTime() + 60 * 60 * 1000),
+
+        endDate: new Date(
+          eventDate.getTime() + 60 * 60 * 1000
+        ),
+
         alarms: event.reminderMinutes
           ? [
               {
@@ -279,16 +329,27 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
           : [],
       };
 
-      await Calendar.createEventAsync(defaultCalendar.id, calendarEvent);
+      await Calendar.createEventAsync(
+        defaultCalendar.id,
+        calendarEvent
+      );
 
       return true;
     } catch (error) {
-      console.error('Экспорт в календарь ошибка:', error);
+      console.error('❌ Экспорт в календарь ошибка:', error);
+
       return false;
     }
   };
 
+  // ======================================================
+  // ДОБАВЛЕНИЕ СОБЫТИЯ
+  // ======================================================
   const addEvent = async () => {
+    if (isSavingEvent) {
+      return;
+    }
+
     if (!newEventTitle.trim() || !selectedDate) {
       Alert.alert('Ошибка', 'Введите название события');
       return;
@@ -299,52 +360,160 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
       return;
     }
 
-    const selectedPetObj = pets.find((p) => p.id === newEventPetId);
+    const selectedPetObj = pets.find(
+      (p) => p.id === newEventPetId
+    );
+
+    setIsSavingEvent(true);
 
     try {
       const token = await AsyncStorage.getItem('userToken');
 
-      const response = await fetch(`${BASE_URL}/api/calendar/events`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          petId: newEventPetId,
-          title: newEventTitle,
-          description: newEventDescription,
-          date: selectedDate.toISOString().split('T')[0],
-          time: newEventTime,
-          type: newEventType,
-          reminderMinutes: newEventReminder ? 60 : null,
-        }),
-      });
+      if (!token) {
+        throw new Error(
+          'Не найден токен авторизации. Войдите в аккаунт заново.'
+        );
+      }
 
+      const requestBody = {
+        petId: newEventPetId,
+        title: newEventTitle.trim(),
+        description: newEventDescription.trim(),
+        date: selectedDate.toISOString().split('T')[0],
+        time: newEventTime || '12:00',
+        type: newEventType,
+        reminderMinutes: newEventReminder ? 60 : null,
+        syncedToPhone: false,
+      };
+
+      console.log(
+        '📅 CREATE CALENDAR EVENT REQUEST:',
+        requestBody
+      );
+
+      const response = await fetch(
+        `${BASE_URL}/api/calendar/events`,
+        {
+          method: 'POST',
+
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+
+          body: JSON.stringify(requestBody),
+        }
+      );
+
+      const responseData = await response
+        .json()
+        .catch(() => null);
+
+      console.log(
+        '📅 CREATE CALENDAR EVENT STATUS:',
+        response.status
+      );
+
+      console.log(
+        '📅 CREATE CALENDAR EVENT RESPONSE:',
+        responseData
+      );
+
+      // --------------------------------------------------
+      // УСПЕШНО
+      // --------------------------------------------------
       if (response.ok) {
-        const newEvent = await response.json();
+        const createdEvent = responseData;
 
+        console.log(
+          '✅ CALENDAR EVENT CREATED:',
+          createdEvent
+        );
+
+        // Экспортируем в календарь телефона,
+        // только если пользователь включил эту опцию.
         if (exportToPhone && calendarPermission) {
           const exported = await exportToSystemCalendar({
-            ...newEvent,
+            ...createdEvent,
             petName: selectedPetObj?.name,
           });
 
           if (exported) {
-            Alert.alert('Успех', 'Событие добавлено в календарь телефона');
+            Alert.alert(
+              'Успех',
+              'Событие добавлено в календарь телефона'
+            );
           }
         }
 
+        // ==================================================
+        // ВАЖНО:
+        // После создания снова загружаем ОБЩИЙ календарь.
+        // Поэтому новое событие для Лады не переключает
+        // календарь на Ладу.
+        // ==================================================
         await loadEvents();
+
         setModalVisible(false);
+
         resetForm();
 
-        Alert.alert('Успех', 'Событие добавлено');
-      } else {
-        throw new Error('Ошибка сохранения');
+        if (!exportToPhone || !calendarPermission) {
+          Alert.alert(
+            'Успех',
+            'Событие добавлено'
+          );
+        }
+
+        return;
       }
+
+      // --------------------------------------------------
+      // ОШИБКА BACKEND
+      // --------------------------------------------------
+      const backendMessage =
+        responseData?.message ||
+        responseData?.error ||
+        'Сервер не смог сохранить событие';
+
+      console.error(
+        '❌ CALENDAR CREATE BACKEND ERROR:',
+        backendMessage
+      );
+
+      if (responseData?.code) {
+        console.error(
+          '❌ PostgreSQL code:',
+          responseData.code
+        );
+      }
+
+      if (responseData?.constraint) {
+        console.error(
+          '❌ PostgreSQL constraint:',
+          responseData.constraint
+        );
+      }
+
+      if (responseData?.detail) {
+        console.error(
+          '❌ PostgreSQL detail:',
+          responseData.detail
+        );
+      }
+
+      throw new Error(backendMessage);
     } catch (error) {
-      Alert.alert('Ошибка', 'Не удалось добавить событие');
+      console.error('❌ ADD EVENT ERROR:', error);
+
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Не удалось добавить событие';
+
+      Alert.alert('Ошибка', errorMessage);
+    } finally {
+      setIsSavingEvent(false);
     }
   };
 
@@ -352,12 +521,19 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
     setNewEventTitle('');
     setNewEventDescription('');
     setNewEventType('reminder');
+
+    // После закрытия формы оставляем выбранного
+    // питомца для следующего события.
     setNewEventPetId(selectedPet?.id || null);
+
     setNewEventTime('12:00');
     setNewEventReminder(true);
     setExportToPhone(false);
   };
 
+  // ======================================================
+  // УДАЛЕНИЕ СОБЫТИЯ
+  // ======================================================
   const deleteEvent = async (eventId: string) => {
     Alert.alert('Удалить событие', 'Вы уверены?', [
       {
@@ -366,34 +542,82 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
       },
       {
         text: 'Удалить',
+
         style: 'destructive',
+
         onPress: async () => {
           try {
-            const token = await AsyncStorage.getItem('userToken');
+            const token =
+              await AsyncStorage.getItem('userToken');
+
+            if (!token) {
+              throw new Error(
+                'Не найден токен авторизации'
+              );
+            }
 
             const response = await fetch(
               `${BASE_URL}/api/calendar/events/${eventId}`,
               {
                 method: 'DELETE',
+
                 headers: {
                   Authorization: `Bearer ${token}`,
                 },
               }
             );
 
+            const responseData = await response
+              .json()
+              .catch(() => null);
+
+            console.log(
+              '🗑️ DELETE CALENDAR EVENT STATUS:',
+              response.status
+            );
+
+            console.log(
+              '🗑️ DELETE CALENDAR EVENT RESPONSE:',
+              responseData
+            );
+
             if (response.ok) {
+              // После удаления также загружаем общий календарь.
               await loadEvents();
-              Alert.alert('Успех', 'Событие удалено');
+
+              Alert.alert(
+                'Успех',
+                'Событие удалено'
+              );
+
+              return;
             }
+
+            throw new Error(
+              responseData?.message ||
+                'Не удалось удалить событие'
+            );
           } catch (error) {
-            Alert.alert('Ошибка', 'Не удалось удалить событие');
+            console.error(
+              '❌ DELETE EVENT ERROR:',
+              error
+            );
+
+            Alert.alert(
+              'Ошибка',
+              error instanceof Error
+                ? error.message
+                : 'Не удалось удалить событие'
+            );
           }
         },
       },
     ]);
   };
 
-  const selectedDateEvents = selectedDate ? getEventsForDate(selectedDate) : [];
+  const selectedDateEvents = selectedDate
+    ? getEventsForDate(selectedDate)
+    : [];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -407,7 +631,11 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
             style={styles.backButton}
             activeOpacity={0.85}
           >
-            <Ionicons name="chevron-back" size={22} color={COLORS.text} />
+            <Ionicons
+              name="chevron-back"
+              size={22}
+              color={COLORS.text}
+            />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -415,13 +643,17 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
             style={styles.todayButton}
             activeOpacity={0.85}
           >
-            <Text style={styles.todayButtonText}>Сегодня</Text>
+            <Text style={styles.todayButtonText}>
+              Сегодня
+            </Text>
           </TouchableOpacity>
         </View>
 
         <Text style={styles.title}>Календарь</Text>
+
         <Text style={styles.subtitle}>
-          Планируйте прививки, визиты к врачу и напоминания для питомцев
+          Планируйте прививки, визиты к врачу и напоминания для
+          питомцев
         </Text>
 
         {pets.length === 0 ? (
@@ -432,10 +664,16 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
             resizeMode="cover"
           >
             <View style={styles.emptyIconCircle}>
-              <Ionicons name="paw-outline" size={34} color={COLORS.white} />
+              <Ionicons
+                name="paw-outline"
+                size={34}
+                color={COLORS.white}
+              />
             </View>
 
-            <Text style={styles.noPetsText}>У вас ещё нет питомцев</Text>
+            <Text style={styles.noPetsText}>
+              У вас ещё нет питомцев
+            </Text>
 
             <Text style={styles.noPetsSubtext}>
               Добавьте питомца, чтобы увидеть календарь заботы
@@ -446,8 +684,15 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
               onPress={() => onNavigate?.('addPet')}
               activeOpacity={0.85}
             >
-              <Ionicons name="add" size={21} color={COLORS.white} />
-              <Text style={styles.addPetButtonText}>Добавить питомца</Text>
+              <Ionicons
+                name="add"
+                size={21}
+                color={COLORS.white}
+              />
+
+              <Text style={styles.addPetButtonText}>
+                Добавить питомца
+              </Text>
             </TouchableOpacity>
           </ImageBackground>
         ) : (
@@ -468,9 +713,12 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
                     key={pet.id}
                     style={[
                       styles.petButton,
-                      selectedPet?.id === pet.id && styles.petButtonSelected,
+                      selectedPet?.id === pet.id &&
+                        styles.petButtonSelected,
                     ]}
-                    onPress={() => setSelectedPet(pet)}
+                    onPress={() =>
+                      setSelectedPet(pet)
+                    }
                     activeOpacity={0.85}
                   >
                     <Text
@@ -490,7 +738,9 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
                           styles.petButtonTextSelected,
                       ]}
                     >
-                      {pet.species === 'dog' ? '🐶' : '🐱'}
+                      {pet.species === 'dog'
+                        ? '🐶'
+                        : '🐱'}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -518,8 +768,11 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
 
                 <View style={styles.monthTitleBlock}>
                   <Text style={styles.monthTitle}>
-                    {MONTHS_RU[currentDate.getMonth()]}
+                    {MONTHS_RU[
+                      currentDate.getMonth()
+                    ]}
                   </Text>
+
                   <Text style={styles.monthYear}>
                     {currentDate.getFullYear()}
                   </Text>
@@ -540,7 +793,10 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
 
               <View style={styles.weekdaysRow}>
                 {WEEKDAYS.map((day) => (
-                  <Text key={day} style={styles.weekdayText}>
+                  <Text
+                    key={day}
+                    style={styles.weekdayText}
+                  >
                     {day}
                   </Text>
                 ))}
@@ -548,45 +804,65 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
 
               <View style={styles.daysGrid}>
                 {calendarDays.map((date, index) => {
-                  const dayEvents = getEventsForDate(date);
-                  const isCurrentMonthDate = isCurrentMonth(date);
+                  const dayEvents =
+                    getEventsForDate(date);
+
+                  const isCurrentMonthDate =
+                    isCurrentMonth(date);
 
                   return (
                     <TouchableOpacity
                       key={index}
                       style={[
                         styles.dayCell,
-                        !isCurrentMonthDate && styles.otherMonthDay,
-                        isToday(date) && styles.todayCell,
-                        isSelected(date) && styles.selectedCell,
+                        !isCurrentMonthDate &&
+                          styles.otherMonthDay,
+                        isToday(date) &&
+                          styles.todayCell,
+                        isSelected(date) &&
+                          styles.selectedCell,
                       ]}
-                      onPress={() => setSelectedDate(date)}
+                      onPress={() =>
+                        setSelectedDate(date)
+                      }
                       activeOpacity={0.85}
                     >
                       <Text
                         style={[
                           styles.dayText,
-                          !isCurrentMonthDate && styles.otherMonthDayText,
-                          isToday(date) && styles.todayText,
-                          isSelected(date) && styles.selectedText,
+                          !isCurrentMonthDate &&
+                            styles.otherMonthDayText,
+                          isToday(date) &&
+                            styles.todayText,
+                          isSelected(date) &&
+                            styles.selectedText,
                         ]}
                       >
                         {date.getDate()}
                       </Text>
 
                       {dayEvents.length > 0 && (
-                        <View style={styles.eventIndicators}>
-                          {dayEvents.slice(0, 3).map((event, i) => (
-                            <View
-                              key={i}
-                              style={[
-                                styles.eventDot,
-                                {
-                                  backgroundColor: EVENT_COLORS[event.type],
-                                },
-                              ]}
-                            />
-                          ))}
+                        <View
+                          style={
+                            styles.eventIndicators
+                          }
+                        >
+                          {dayEvents
+                            .slice(0, 3)
+                            .map((event, i) => (
+                              <View
+                                key={i}
+                                style={[
+                                  styles.eventDot,
+                                  {
+                                    backgroundColor:
+                                      EVENT_COLORS[
+                                        event.type
+                                      ],
+                                  },
+                                ]}
+                              />
+                            ))}
                         </View>
                       )}
                     </TouchableOpacity>
@@ -604,14 +880,21 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
               >
                 <View style={styles.eventsHeader}>
                   <View>
-                    <Text style={styles.eventsTitle}>
-                      {selectedDate.toLocaleDateString('ru-RU', {
-                        day: 'numeric',
-                        month: 'long',
-                      })}
+                    <Text
+                      style={styles.eventsTitle}
+                    >
+                      {selectedDate.toLocaleDateString(
+                        'ru-RU',
+                        {
+                          day: 'numeric',
+                          month: 'long',
+                        }
+                      )}
                     </Text>
 
-                    <Text style={styles.eventsSubtitle}>
+                    <Text
+                      style={styles.eventsSubtitle}
+                    >
                       {selectedDateEvents.length === 0
                         ? 'Событий пока нет'
                         : `${selectedDateEvents.length} событие(й)`}
@@ -619,12 +902,27 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
                   </View>
 
                   <TouchableOpacity
-                    style={styles.addEventButton}
-                    onPress={() => setModalVisible(true)}
+                    style={
+                      styles.addEventButton
+                    }
+                    onPress={() =>
+                      setModalVisible(true)
+                    }
                     activeOpacity={0.85}
                   >
-                    <Ionicons name="add" size={19} color={COLORS.white} />
-                    <Text style={styles.addEventButtonText}>Добавить</Text>
+                    <Ionicons
+                      name="add"
+                      size={19}
+                      color={COLORS.white}
+                    />
+
+                    <Text
+                      style={
+                        styles.addEventButtonText
+                      }
+                    >
+                      Добавить
+                    </Text>
                   </TouchableOpacity>
                 </View>
 
@@ -635,68 +933,123 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
                       size={32}
                       color={COLORS.accentDark}
                     />
-                    <Text style={styles.noEventsText}>
-                      На этот день ничего не запланировано
+
+                    <Text
+                      style={styles.noEventsText}
+                    >
+                      На этот день ничего не
+                      запланировано
                     </Text>
                   </View>
                 ) : (
                   selectedDateEvents.map((event) => {
-                    const petForEvent = pets.find((p) => p.id === event.petId);
+                    const petForEvent = pets.find(
+                      (p) => p.id === event.petId
+                    );
 
                     return (
-                      <View key={event.id} style={styles.eventCard}>
+                      <View
+                        key={event.id}
+                        style={styles.eventCard}
+                      >
                         <View
                           style={[
                             styles.eventColorLine,
                             {
-                              backgroundColor: EVENT_COLORS[event.type],
+                              backgroundColor:
+                                EVENT_COLORS[
+                                  event.type
+                                ],
                             },
                           ]}
                         />
 
-                        <View style={styles.eventCardContent}>
-                          <View style={styles.eventIconCircle}>
+                        <View
+                          style={
+                            styles.eventCardContent
+                          }
+                        >
+                          <View
+                            style={
+                              styles.eventIconCircle
+                            }
+                          >
                             <Ionicons
-                              name={EVENT_ICONS[event.type]}
+                              name={
+                                EVENT_ICONS[
+                                  event.type
+                                ]
+                              }
                               size={20}
                               color={COLORS.white}
                             />
                           </View>
 
-                          <View style={styles.eventTextBlock}>
-                            <Text style={styles.eventTitle}>
+                          <View
+                            style={
+                              styles.eventTextBlock
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.eventTitle
+                              }
+                            >
                               {event.title}
                             </Text>
 
                             {petForEvent && (
-                              <Text style={styles.eventPetName}>
+                              <Text
+                                style={
+                                  styles.eventPetName
+                                }
+                              >
                                 {petForEvent.name}{' '}
-                                {petForEvent.species === 'dog' ? '🐶' : '🐱'}
+                                {petForEvent.species ===
+                                'dog'
+                                  ? '🐶'
+                                  : '🐱'}
                               </Text>
                             )}
 
                             {event.time && (
-                              <Text style={styles.eventTime}>
+                              <Text
+                                style={
+                                  styles.eventTime
+                                }
+                              >
                                 {event.time}
                               </Text>
                             )}
 
                             {event.description ? (
-                              <Text style={styles.eventDescription}>
+                              <Text
+                                style={
+                                  styles.eventDescription
+                                }
+                              >
                                 {event.description}
                               </Text>
                             ) : null}
                           </View>
 
                           <TouchableOpacity
-                            onPress={() => deleteEvent(event.id)}
-                            style={styles.deleteEventButton}
+                            onPress={() =>
+                              deleteEvent(
+                                event.id
+                              )
+                            }
+                            style={
+                              styles.deleteEventButton
+                            }
                             activeOpacity={0.85}
                           >
                             <Ionicons
                               name="trash-outline"
                               size={20}
-                              color={COLORS.coral}
+                              color={
+                                COLORS.coral
+                              }
                             />
                           </TouchableOpacity>
                         </View>
@@ -714,7 +1067,9 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
         visible={modalVisible}
         animationType="slide"
         transparent
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={() =>
+          setModalVisible(false)
+        }
       >
         <View style={styles.modalOverlay}>
           <ImageBackground
@@ -723,51 +1078,78 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
             imageStyle={styles.modalImage}
             resizeMode="cover"
           >
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+            >
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Добавить событие</Text>
+                <Text style={styles.modalTitle}>
+                  Добавить событие
+                </Text>
 
                 <TouchableOpacity
-                  onPress={() => setModalVisible(false)}
-                  style={styles.modalCloseButton}
+                  onPress={() =>
+                    setModalVisible(false)
+                  }
+                  style={
+                    styles.modalCloseButton
+                  }
                   activeOpacity={0.85}
                 >
-                  <Ionicons name="close" size={22} color={COLORS.text} />
+                  <Ionicons
+                    name="close"
+                    size={22}
+                    color={COLORS.text}
+                  />
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.modalLabel}>Питомец</Text>
+              <Text style={styles.modalLabel}>
+                Питомец
+              </Text>
 
               <ScrollView
                 horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.petSelectorModal}
+                showsHorizontalScrollIndicator={
+                  false
+                }
+                contentContainerStyle={
+                  styles.petSelectorModal
+                }
               >
                 {pets.map((pet) => (
                   <TouchableOpacity
                     key={pet.id}
                     style={[
                       styles.petSelectButton,
-                      newEventPetId === pet.id &&
+                      newEventPetId ===
+                        pet.id &&
                         styles.petSelectButtonActive,
                     ]}
-                    onPress={() => setNewEventPetId(pet.id)}
+                    onPress={() =>
+                      setNewEventPetId(pet.id)
+                    }
                     activeOpacity={0.85}
                   >
                     <Text
                       style={[
                         styles.petSelectButtonText,
-                        newEventPetId === pet.id &&
+                        newEventPetId ===
+                          pet.id &&
                           styles.petSelectButtonTextActive,
                       ]}
                     >
-                      {pet.name} {pet.species === 'dog' ? '🐶' : '🐱'}
+                      {pet.name}{' '}
+                      {pet.species === 'dog'
+                        ? '🐶'
+                        : '🐱'}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
 
-              <Text style={styles.modalLabel}>Тип события</Text>
+              <Text style={styles.modalLabel}>
+                Тип события
+              </Text>
 
               <View style={styles.typeSelector}>
                 {(
@@ -782,22 +1164,29 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
                     key={type}
                     style={[
                       styles.typeButton,
-                      newEventType === type && styles.typeButtonActive,
+                      newEventType === type &&
+                        styles.typeButtonActive,
                     ]}
-                    onPress={() => setNewEventType(type)}
+                    onPress={() =>
+                      setNewEventType(type)
+                    }
                     activeOpacity={0.85}
                   >
                     <Ionicons
                       name={EVENT_ICONS[type]}
                       size={18}
                       color={
-                        newEventType === type ? COLORS.white : COLORS.text
+                        newEventType === type
+                          ? COLORS.white
+                          : COLORS.text
                       }
                     />
+
                     <Text
                       style={[
                         styles.typeButtonText,
-                        newEventType === type &&
+                        newEventType ===
+                          type &&
                           styles.typeButtonTextActive,
                       ]}
                     >
@@ -807,45 +1196,74 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
                 ))}
               </View>
 
-              <Text style={styles.modalLabel}>Название</Text>
+              <Text style={styles.modalLabel}>
+                Название
+              </Text>
 
               <TextInput
                 style={styles.modalInput}
                 placeholder="Например: Прививка от бешенства"
-                placeholderTextColor={COLORS.textSoft}
+                placeholderTextColor={
+                  COLORS.textSoft
+                }
                 value={newEventTitle}
-                onChangeText={setNewEventTitle}
+                onChangeText={
+                  setNewEventTitle
+                }
               />
 
-              <Text style={styles.modalLabel}>Время</Text>
+              <Text style={styles.modalLabel}>
+                Время
+              </Text>
 
               <TextInput
                 style={styles.modalInput}
                 placeholder="12:00"
-                placeholderTextColor={COLORS.textSoft}
+                placeholderTextColor={
+                  COLORS.textSoft
+                }
                 value={newEventTime}
                 onChangeText={setNewEventTime}
               />
 
-              <Text style={styles.modalLabel}>Описание</Text>
+              <Text style={styles.modalLabel}>
+                Описание
+              </Text>
 
               <TextInput
-                style={[styles.modalInput, styles.modalTextArea]}
+                style={[
+                  styles.modalInput,
+                  styles.modalTextArea,
+                ]}
                 placeholder="Подробности..."
-                placeholderTextColor={COLORS.textSoft}
+                placeholderTextColor={
+                  COLORS.textSoft
+                }
                 value={newEventDescription}
-                onChangeText={setNewEventDescription}
+                onChangeText={
+                  setNewEventDescription
+                }
                 multiline
                 numberOfLines={3}
                 textAlignVertical="top"
               />
 
-              <View style={styles.modalSwitchRow}>
-                <Text style={styles.modalSwitchLabel}>Напомнить за час</Text>
+              <View
+                style={styles.modalSwitchRow}
+              >
+                <Text
+                  style={
+                    styles.modalSwitchLabel
+                  }
+                >
+                  Напомнить за час
+                </Text>
 
                 <Switch
                   value={newEventReminder}
-                  onValueChange={setNewEventReminder}
+                  onValueChange={
+                    setNewEventReminder
+                  }
                   trackColor={{
                     false: COLORS.border,
                     true: COLORS.accent,
@@ -854,14 +1272,22 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
                 />
               </View>
 
-              <View style={styles.modalSwitchRow}>
-                <Text style={styles.modalSwitchLabel}>
+              <View
+                style={styles.modalSwitchRow}
+              >
+                <Text
+                  style={
+                    styles.modalSwitchLabel
+                  }
+                >
                   Экспорт в календарь телефона
                 </Text>
 
                 <Switch
                   value={exportToPhone}
-                  onValueChange={setExportToPhone}
+                  onValueChange={
+                    setExportToPhone
+                  }
                   disabled={!calendarPermission}
                   trackColor={{
                     false: COLORS.border,
@@ -872,27 +1298,54 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
               </View>
 
               {!calendarPermission && (
-                <Text style={styles.permissionWarning}>
-                  Разрешите доступ к календарю в настройках, чтобы
-                  экспортировать события
+                <Text
+                  style={
+                    styles.permissionWarning
+                  }
+                >
+                  Разрешите доступ к календарю в
+                  настройках, чтобы экспортировать
+                  события
                 </Text>
               )}
 
               <View style={styles.modalButtons}>
                 <TouchableOpacity
                   style={styles.cancelButton}
-                  onPress={() => setModalVisible(false)}
+                  onPress={() =>
+                    setModalVisible(false)
+                  }
+                  disabled={isSavingEvent}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.cancelButtonText}>Отмена</Text>
+                  <Text
+                    style={
+                      styles.cancelButtonText
+                    }
+                  >
+                    Отмена
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.saveButton}
+                  style={[
+                    styles.saveButton,
+                    isSavingEvent &&
+                      styles.saveButtonDisabled,
+                  ]}
                   onPress={addEvent}
+                  disabled={isSavingEvent}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.saveButtonText}>Сохранить</Text>
+                  <Text
+                    style={
+                      styles.saveButtonText
+                    }
+                  >
+                    {isSavingEvent
+                      ? 'Сохранение...'
+                      : 'Сохранить'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -902,7 +1355,9 @@ const PetMedicationsScreen: React.FC<PetMedicationsScreenProps> = ({
 
       <BottomNav
         currentScreen="medications"
-        onNavigate={(screen) => onNavigate?.(screen)}
+        onNavigate={(screen) =>
+          onNavigate?.(screen)
+        }
       />
     </SafeAreaView>
   );
@@ -1551,6 +2006,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.accent,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  saveButtonDisabled: {
+    opacity: 0.6,
   },
 
   saveButtonText: {

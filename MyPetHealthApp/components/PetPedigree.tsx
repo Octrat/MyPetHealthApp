@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -134,13 +133,6 @@ const getSexLabel = (sex?: string | null) => {
   return '';
 };
 
-/**
- * Безопасно читает ответ сервера.
- *
- * Если сервер вернул JSON — возвращаем объект.
- * Если сервер вернул HTML — показываем тело ответа
- * в консоли, чтобы можно было понять причину ошибки.
- */
 const readResponse = async (response: Response) => {
   const text = await response.text();
 
@@ -285,6 +277,7 @@ export default function PetPedigree({
         String(item.id) !== String(pet.id),
     );
 
+    // Сразу показываем питомцев из props.
     setAvailablePets(fallbackPets);
 
     try {
@@ -395,7 +388,19 @@ export default function PetPedigree({
     resetAddForm();
   };
 
+  /**
+   * Выбор родственника.
+   *
+   * Теперь мы НЕ открываем отдельный Modal.
+   * После выбора просто возвращаемся
+   * к форме добавления.
+   */
   const selectRelative = (relative: Pet) => {
+    console.log('🐾 SELECTED RELATIVE:', {
+      id: relative.id,
+      name: relative.name,
+    });
+
     setSelectedRelative(relative);
     setShowPetSelector(false);
   };
@@ -1170,377 +1175,420 @@ export default function PetPedigree({
           </View>
         </ScrollView>
 
-        {/* ADD RELATIVE MODAL */}
+        {/* =====================================================
+            ADD RELATIVE MODAL
+            Здесь теперь только ОДИН Modal.
+            Выбор питомца открывается внутри него.
+           ===================================================== */}
         <Modal
           visible={showAddModal}
           animationType="slide"
           transparent
-          onRequestClose={
-            closeAddModal
-          }
+          onRequestClose={() => {
+            if (showPetSelector) {
+              setShowPetSelector(false);
+            } else {
+              closeAddModal();
+            }
+          }}
         >
           <View style={styles.overlay}>
             <View style={styles.addModal}>
-              <View
-                style={styles.modalHeader}
-              >
-                <Text
-                  style={styles.modalTitle}
-                >
-                  Добавить родственника
-                </Text>
 
-                <Pressable
-                  onPress={closeAddModal}
-                  disabled={saving}
-                >
-                  <Ionicons
-                    name="close"
-                    size={25}
-                    color="#2F4F4F"
-                  />
-                </Pressable>
-              </View>
-
-              <ScrollView
-                showsVerticalScrollIndicator={
-                  false
-                }
-                contentContainerStyle={
-                  styles.modalContent
-                }
-              >
-                {/* RELATION TYPE */}
-                <Text
-                  style={styles.fieldLabel}
-                >
-                  Кто это?
-                </Text>
-
-                <View
-                  style={styles.relationGrid}
-                >
-                  {(
-                    Object.keys(
-                      RELATION_LABELS,
-                    ) as RelationType[]
-                  ).map((type) => {
-                    const selected =
-                      selectedRelationType ===
-                      type;
-
-                    return (
+              {/* =================================================
+                  PET SELECTOR SCREEN
+                 ================================================= */}
+              {showPetSelector ? (
+                <>
+                  <View
+                    style={styles.modalHeader}
+                  >
+                    <View style={styles.selectorHeaderLeft}>
                       <Pressable
-                        key={type}
-                        style={[
-                          styles.relationOption,
-                          selected &&
-                            styles.relationOptionSelected,
-                        ]}
+                        style={styles.backButton}
                         onPress={() =>
-                          setSelectedRelationType(
-                            type,
-                          )
+                          setShowPetSelector(false)
                         }
                       >
                         <Ionicons
-                          name={
-                            RELATION_ICONS[
-                              type
-                            ] as any
-                          }
-                          size={20}
-                          color={
-                            selected
-                              ? '#FFFFFF'
-                              : '#7BC9A8'
-                          }
+                          name="chevron-back"
+                          size={23}
+                          color="#2F4F4F"
                         />
+                      </Pressable>
+
+                      <View>
+                        <Text
+                          style={
+                            styles.modalTitle
+                          }
+                        >
+                          Выберите питомца
+                        </Text>
 
                         <Text
-                          style={[
-                            styles.relationOptionText,
-                            selected &&
-                              styles.relationOptionTextSelected,
-                          ]}
-                        >
-                          {
-                            RELATION_LABELS[
-                              type
-                            ]
+                          style={
+                            styles.modalSubtitle
                           }
+                        >
+                          Только питомцы из вашего аккаунта
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Pressable
+                      onPress={closeAddModal}
+                      disabled={saving}
+                    >
+                      <Ionicons
+                        name="close"
+                        size={25}
+                        color="#2F4F4F"
+                      />
+                    </Pressable>
+                  </View>
+
+                  {availablePets.length === 0 ? (
+                    <View
+                      style={styles.noPets}
+                    >
+                      <Ionicons
+                        name="paw-outline"
+                        size={40}
+                        color="#B5C7BE"
+                      />
+
+                      <Text
+                        style={
+                          styles.noPetsTitle
+                        }
+                      >
+                        Других питомцев нет
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.noPetsText
+                        }
+                      >
+                        Добавьте ещё одного питомца
+                        в аккаунт, чтобы указать
+                        его как родственника.
+                      </Text>
+
+                      <Pressable
+                        style={
+                          styles.backToFormButton
+                        }
+                        onPress={() =>
+                          setShowPetSelector(false)
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.backToFormButtonText
+                          }
+                        >
+                          Вернуться
                         </Text>
                       </Pressable>
-                    );
-                  })}
-                </View>
+                    </View>
+                  ) : (
+                    <FlatList
+                      data={availablePets}
+                      keyExtractor={(item) =>
+                        String(item.id)
+                      }
+                      renderItem={
+                        renderAvailablePet
+                      }
+                      contentContainerStyle={
+                        styles.petList
+                      }
+                      showsVerticalScrollIndicator={
+                        false
+                      }
+                    />
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* =================================================
+                      ADD FORM
+                     ================================================= */}
+                  <View
+                    style={styles.modalHeader}
+                  >
+                    <Text
+                      style={
+                        styles.modalTitle
+                      }
+                    >
+                      Добавить родственника
+                    </Text>
 
-                {/* RELATIVE PET */}
-                <Text
-                  style={styles.fieldLabel}
-                >
-                  Питомец
-                </Text>
+                    <Pressable
+                      onPress={closeAddModal}
+                      disabled={saving}
+                    >
+                      <Ionicons
+                        name="close"
+                        size={25}
+                        color="#2F4F4F"
+                      />
+                    </Pressable>
+                  </View>
 
-                <Pressable
-                  style={styles.selector}
-                  onPress={() =>
-                    setShowPetSelector(
-                      true,
-                    )
-                  }
-                >
-                  {selectedRelative ? (
-                    <>
-                      {selectedRelative.photo_url ? (
-                        <Image
-                          source={{
-                            uri: selectedRelative.photo_url,
-                          }}
-                          style={
-                            styles.selectorAvatar
-                          }
-                        />
+                  <ScrollView
+                    showsVerticalScrollIndicator={
+                      false
+                    }
+                    contentContainerStyle={
+                      styles.modalContent
+                    }
+                  >
+                    {/* RELATION TYPE */}
+                    <Text
+                      style={styles.fieldLabel}
+                    >
+                      Кто это?
+                    </Text>
+
+                    <View
+                      style={styles.relationGrid}
+                    >
+                      {(
+                        Object.keys(
+                          RELATION_LABELS,
+                        ) as RelationType[]
+                      ).map((type) => {
+                        const selected =
+                          selectedRelationType ===
+                          type;
+
+                        return (
+                          <Pressable
+                            key={type}
+                            style={[
+                              styles.relationOption,
+                              selected &&
+                                styles.relationOptionSelected,
+                            ]}
+                            onPress={() =>
+                              setSelectedRelationType(
+                                type,
+                              )
+                            }
+                          >
+                            <Ionicons
+                              name={
+                                RELATION_ICONS[
+                                  type
+                                ] as any
+                              }
+                              size={20}
+                              color={
+                                selected
+                                  ? '#FFFFFF'
+                                  : '#7BC9A8'
+                              }
+                            />
+
+                            <Text
+                              style={[
+                                styles.relationOptionText,
+                                selected &&
+                                  styles.relationOptionTextSelected,
+                              ]}
+                            >
+                              {
+                                RELATION_LABELS[
+                                  type
+                                ]
+                              }
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+
+                    {/* RELATIVE PET */}
+                    <Text
+                      style={styles.fieldLabel}
+                    >
+                      Питомец
+                    </Text>
+
+                    <Pressable
+                      style={styles.selector}
+                      onPress={() => {
+                        console.log(
+                          '🐾 OPEN PET SELECTOR',
+                        );
+
+                        setShowPetSelector(true);
+                      }}
+                    >
+                      {selectedRelative ? (
+                        <>
+                          {selectedRelative.photo_url ? (
+                            <Image
+                              source={{
+                                uri: selectedRelative.photo_url,
+                              }}
+                              style={
+                                styles.selectorAvatar
+                              }
+                            />
+                          ) : (
+                            <View
+                              style={
+                                styles.selectorAvatarPlaceholder
+                              }
+                            >
+                              <Ionicons
+                                name="paw"
+                                size={19}
+                                color="#7BC9A8"
+                              />
+                            </View>
+                          )}
+
+                          <View
+                            style={
+                              styles.selectorInfo
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.selectorName
+                              }
+                            >
+                              {
+                                selectedRelative.name
+                              }
+                            </Text>
+
+                            <Text
+                              style={
+                                styles.selectorDetails
+                              }
+                            >
+                              {getPetSpeciesLabel(
+                                selectedRelative.species,
+                              )}
+
+                              {getPetBreed(
+                                selectedRelative,
+                              )
+                                ? ` • ${getPetBreed(
+                                    selectedRelative,
+                                  )}`
+                                : ''}
+                            </Text>
+                          </View>
+                        </>
                       ) : (
+                        <>
+                          <View
+                            style={
+                              styles.selectorIcon
+                            }
+                          >
+                            <Ionicons
+                              name="paw-outline"
+                              size={22}
+                              color="#7BC9A8"
+                            />
+                          </View>
+
+                          <Text
+                            style={
+                              styles.selectorPlaceholder
+                            }
+                          >
+                            Выберите питомца
+                          </Text>
+                        </>
+                      )}
+
+                      <Ionicons
+                        name="chevron-forward"
+                        size={21}
+                        color="#999"
+                      />
+                    </Pressable>
+
+                    {/* SUMMARY */}
+                    {selectedRelationType &&
+                      selectedRelative && (
                         <View
                           style={
-                            styles.selectorAvatarPlaceholder
+                            styles.summaryCard
                           }
                         >
                           <Ionicons
-                            name="paw"
-                            size={19}
+                            name="checkmark-circle"
+                            size={21}
                             color="#7BC9A8"
                           />
+
+                          <Text
+                            style={
+                              styles.summaryText
+                            }
+                          >
+                            {
+                              selectedRelative.name
+                            }
+                            {' — '}
+                            {RELATION_LABELS[
+                              selectedRelationType
+                            ].toLowerCase()}
+                          </Text>
                         </View>
                       )}
 
-                      <View
-                        style={
-                          styles.selectorInfo
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.selectorName
-                          }
-                        >
-                          {
-                            selectedRelative.name
-                          }
-                        </Text>
-
-                        <Text
-                          style={
-                            styles.selectorDetails
-                          }
-                        >
-                          {getPetSpeciesLabel(
-                            selectedRelative.species,
-                          )}
-
-                          {getPetBreed(
-                            selectedRelative,
-                          )
-                            ? ` • ${getPetBreed(
-                                selectedRelative,
-                              )}`
-                            : ''}
-                        </Text>
-                      </View>
-                    </>
-                  ) : (
-                    <>
-                      <View
-                        style={
-                          styles.selectorIcon
-                        }
-                      >
-                        <Ionicons
-                          name="paw-outline"
-                          size={22}
-                          color="#7BC9A8"
-                        />
-                      </View>
-
-                      <Text
-                        style={
-                          styles.selectorPlaceholder
-                        }
-                      >
-                        Выберите питомца
-                      </Text>
-                    </>
-                  )}
-
-                  <Ionicons
-                    name="chevron-forward"
-                    size={21}
-                    color="#999"
-                  />
-                </Pressable>
-
-                {/* SUMMARY */}
-                {selectedRelationType &&
-                  selectedRelative && (
-                    <View
-                      style={
-                        styles.summaryCard
+                    {/* SAVE */}
+                    <Pressable
+                      style={[
+                        styles.saveButton,
+                        (!selectedRelationType ||
+                          !selectedRelative ||
+                          saving) &&
+                          styles.saveButtonDisabled,
+                      ]}
+                      onPress={saveRelation}
+                      disabled={
+                        !selectedRelationType ||
+                        !selectedRelative ||
+                        saving
                       }
                     >
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={21}
-                        color="#7BC9A8"
-                      />
+                      {saving ? (
+                        <ActivityIndicator
+                          color="#FFFFFF"
+                        />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="send-outline"
+                            size={19}
+                            color="#FFFFFF"
+                          />
 
-                      <Text
-                        style={
-                          styles.summaryText
-                        }
-                      >
-                        {
-                          selectedRelative.name
-                        }
-                        {' — '}
-                        {RELATION_LABELS[
-                          selectedRelationType
-                        ].toLowerCase()}
-                      </Text>
-                    </View>
-                  )}
-
-                {/* SAVE */}
-                <Pressable
-                  style={[
-                    styles.saveButton,
-                    (!selectedRelationType ||
-                      !selectedRelative ||
-                      saving) &&
-                      styles.saveButtonDisabled,
-                  ]}
-                  onPress={saveRelation}
-                  disabled={
-                    !selectedRelationType ||
-                    !selectedRelative ||
-                    saving
-                  }
-                >
-                  {saving ? (
-                    <ActivityIndicator
-                      color="#FFFFFF"
-                    />
-                  ) : (
-                    <>
-                      <Ionicons
-                        name="send-outline"
-                        size={19}
-                        color="#FFFFFF"
-                      />
-
-                      <Text
-                        style={
-                          styles.saveButtonText
-                        }
-                      >
-                        Отправить на проверку
-                      </Text>
-                    </>
-                  )}
-                </Pressable>
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-
-        {/* PET SELECTOR */}
-        <Modal
-          visible={showPetSelector}
-          animationType="slide"
-          transparent
-          onRequestClose={() =>
-            setShowPetSelector(false)
-          }
-        >
-          <View style={styles.overlay}>
-            <View
-              style={
-                styles.petSelectorModal
-              }
-            >
-              <View
-                style={styles.modalHeader}
-              >
-                <View>
-                  <Text
-                    style={styles.modalTitle}
-                  >
-                    Выберите питомца
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.modalSubtitle
-                    }
-                  >
-                    Только питомцы из вашего
-                    аккаунта
-                  </Text>
-                </View>
-
-                <Pressable
-                  onPress={() =>
-                    setShowPetSelector(
-                      false,
-                    )
-                  }
-                >
-                  <Ionicons
-                    name="close"
-                    size={25}
-                    color="#2F4F4F"
-                  />
-                </Pressable>
-              </View>
-
-              {availablePets.length === 0 ? (
-                <View style={styles.noPets}>
-                  <Ionicons
-                    name="paw-outline"
-                    size={40}
-                    color="#B5C7BE"
-                  />
-
-                  <Text
-                    style={styles.noPetsTitle}
-                  >
-                    Других питомцев нет
-                  </Text>
-
-                  <Text
-                    style={styles.noPetsText}
-                  >
-                    Добавьте ещё одного питомца
-                    в аккаунт, чтобы указать
-                    его как родственника.
-                  </Text>
-                </View>
-              ) : (
-                <FlatList
-                  data={availablePets}
-                  keyExtractor={(item) =>
-                    String(item.id)
-                  }
-                  renderItem={
-                    renderAvailablePet
-                  }
-                  contentContainerStyle={
-                    styles.petList
-                  }
-                  showsVerticalScrollIndicator={
-                    false
-                  }
-                />
+                          <Text
+                            style={
+                              styles.saveButtonText
+                            }
+                          >
+                            Отправить на проверку
+                          </Text>
+                        </>
+                      )}
+                    </Pressable>
+                  </ScrollView>
+                </>
               )}
             </View>
           </View>
@@ -1916,16 +1964,11 @@ const styles = StyleSheet.create({
 
   addModal: {
     maxHeight: '90%',
+    minHeight: 300,
     backgroundColor: '#F6F9F7',
     borderTopLeftRadius: 25,
     borderTopRightRadius: 25,
-  },
-
-  petSelectorModal: {
-    maxHeight: '80%',
-    backgroundColor: '#F6F9F7',
-    borderTopLeftRadius: 25,
-    borderTopRightRadius: 25,
+    overflow: 'hidden',
   },
 
   modalHeader: {
@@ -1937,6 +1980,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 25,
     borderTopRightRadius: 25,
+  },
+
+  selectorHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0F5F2',
+    marginRight: 10,
   },
 
   modalTitle: {
@@ -2160,6 +2219,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: '#2F4F4F',
+    textAlign: 'center',
   },
 
   noPetsText: {
@@ -2168,5 +2228,19 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     textAlign: 'center',
     color: '#788780',
+  },
+
+  backToFormButton: {
+    marginTop: 20,
+    paddingHorizontal: 22,
+    paddingVertical: 11,
+    borderRadius: 12,
+    backgroundColor: '#EAF6F0',
+  },
+
+  backToFormButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2F4F4F',
   },
 });
