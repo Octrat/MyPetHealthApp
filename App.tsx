@@ -1,4 +1,3 @@
-
 // App.tsx
 import React, { useState, useEffect } from 'react';
 import {
@@ -65,9 +64,30 @@ interface Chat {
   updated_at: string;
 }
 
+/**
+ * Проверяет, нужно ли открыть экран входа напрямую по ссылке:
+ * https://mypethealthapp.expo.app/?screen=login
+ */
+const shouldOpenLoginFromUrl = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  return params.get('screen') === 'login';
+};
+
 function MainApp() {
-  const [appState, setAppState] = useState<AppScreen>('splash');
+  const [appState, setAppState] = useState<AppScreen>(() =>
+    shouldOpenLoginFromUrl() ? 'login' : 'splash'
+  );
+
+  const [forceLogin, setForceLogin] = useState(() =>
+    shouldOpenLoginFromUrl()
+  );
+
   const { user, logout, isLoading } = useAuth();
+
   const [pets, setPets] = useState<Pet[]>([]);
   const [loadingPets, setLoadingPets] = useState(false);
 
@@ -271,6 +291,13 @@ function MainApp() {
   };
 
   useEffect(() => {
+    // При прямом переходе по ссылке с screen=login
+    // не запускаем перенаправление со страницы входа.
+    if (forceLogin) {
+      setAppState('login');
+      return;
+    }
+
     if (appState === 'splash') {
       const timer = setTimeout(() => {
         setAppState(user ? 'main' : 'login');
@@ -278,29 +305,36 @@ function MainApp() {
 
       return () => clearTimeout(timer);
     }
-  }, [appState, user]);
+  }, [appState, user, forceLogin]);
 
   useEffect(() => {
-    if (appState === 'main') {
+    if (appState === 'main' && !forceLogin) {
       loadPets();
     }
-  }, [appState, user]);
+  }, [appState, user, forceLogin]);
 
   useEffect(() => {
-    if (pets.length > 0 && user && appState === 'main') {
+    if (pets.length > 0 && user && appState === 'main' && !forceLogin) {
       initializeChats();
     }
-  }, [pets, user, appState]);
+  }, [pets, user, appState, forceLogin]);
 
-  if (isLoading || appState === 'splash') {
+  // При обычном запуске показываем заставку, пока проверяется авторизация.
+  // При переходе по специальной ссылке сразу показываем форму входа.
+  if (!forceLogin && (isLoading || appState === 'splash')) {
     return <SplashScreen />;
   }
 
   if (appState === 'login') {
     return (
       <LoginScreen
-        onSwitchToRegister={() => setAppState('register')}
+        onSwitchToRegister={() => {
+          setForceLogin(false);
+          setAppState('register');
+        }}
         onLoginSuccess={(userRole) => {
+          setForceLogin(false);
+
           if (userRole === 'admin') {
             setAppState('admin-panel');
           } else {
@@ -314,7 +348,10 @@ function MainApp() {
   if (appState === 'register') {
     return (
       <RegisterScreen
-        onRegister={() => setAppState('main')}
+        onRegister={() => {
+          setForceLogin(false);
+          setAppState('main');
+        }}
         onSwitchToLogin={() => setAppState('login')}
       />
     );
