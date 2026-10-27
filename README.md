@@ -1,26 +1,43 @@
-# 🐾 HealthyPaws — Pet Health Management App
+## 📱 Application Preview
 
-**A pet care application for managing pet profiles, health information, and everyday care routines.**
+Explore the HealthyPaws interface and its key features through the screenshots below.
 
-[🌐 Live Demo](https://mypethealthapp.expo.app) · [💻 Source Code](https://github.com/Octrat/MyPetHealthApp)
+### 🔐 Authentication & Profile
+
+| Login | Registration | User Profile |
+|:---:|:---:|:---:|
+| ![Login screen](docs/screenshots/login.png) | ![Registration screen](docs/screenshots/register.png) | ![User profile](docs/screenshots/profile.png) |
+
+### 🐾 Home & Pet Management
+
+| Home Screen | My Pets | Add a Pet |
+|:---:|:---:|:---:|
+| ![Home screen](docs/screenshots/home.png) | ![Pets screen](docs/screenshots/pets.png) | ![Add pet screen](docs/screenshots/add-pet.png) |
+
+### 🤖 AI-Powered Features
+
+| AI Assistant Chat | AI Breed Recognition |
+|:---:|:---:|
+| ![AI assistant chat](docs/screenshots/ai-chat.png) | ![AI breed recognition](docs/screenshots/breed-recognition.png) |
+
+### 🧬 Pet Pedigree & Passport
+
+| Pet Pedigree | Pet Passport |
+|:---:|:---:|
+| ![Pet pedigree](docs/screenshots/pedigree.png) | ![Pet passport](docs/screenshots/passport.png) |
+
+### 📅 Calendar & Events
+
+| Care Calendar | Event Details |
+|:---:|:---:|
+| ![Calendar](docs/screenshots/calendar.png) | ![Event details](docs/screenshots/event.png) |
 
 ---
 
-## 📱 Application Preview
+🌐 **[Try HealthyPaws Live Demo](https://mypethealthapp.expo.app)**
 
-Explore the HealthyPaws interface through the screenshots below, or open the live demo to try the application.
+💻 **[View Source Code on GitHub](https://github.com/Octrat/MyPetHealthApp)**
 
-<!-- Add your real screenshots to docs/screenshots/ and update these paths. -->
-
-| Home & Pet Profiles | Pet Health & Care |
-|:---:|:---:|
-| ![Home screen](docs/screenshots/home.png) | ![Pet health screen](docs/screenshots/health.png) |
-
-| Pet Pedigree | AI Pet Assistant |
-|:---:|:---:|
-| ![Pet pedigree](docs/screenshots/pedigree.png) | ![AI assistant](docs/screenshots/assistant.png) |
-
-**[Open the Live Demo →](https://mypethealthapp.expo.app)**
 
 ---
 
