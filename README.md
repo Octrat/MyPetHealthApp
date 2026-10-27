@@ -33,8 +33,7 @@ Explore the HealthyPaws interface and its key features through the screenshots b
 | ![Calendar](docs/screenshots/calendar.png) | ![Event details](docs/screenshots/event.png) |
 
 ---
-
-🌐 **[Try HealthyPaws Live Demo](https://mypethealthapp.expo.app)**
+🌐 [**Try HealthyPaws Live Demo**](https://mypethealthapp.expo.app/?screen=login)
 
 💻 **[View Source Code on GitHub](https://github.com/Octrat/MyPetHealthApp)**
 
