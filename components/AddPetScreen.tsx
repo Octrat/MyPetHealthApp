@@ -701,14 +701,16 @@ export default function AddPetScreen({
         )}
 
         {pets.map((pet) => {
-          const health = analyzePetHealthByCategory({
-            sizeCategory: (pet.breed_size_category ?? 'medium') as SizeCategory,
-            weight: pet.weight ?? 0,
-            height: pet.height ?? 0,
-            age: pet.age ?? 0,
-            sex: pet.sex ?? 'male',
-            neutered: pet.neutered ?? false,
-          });
+          const health = pet.breed_size_category
+          ? analyzePetHealthByCategory({
+              sizeCategory: pet.breed_size_category as SizeCategory,
+              weight: pet.weight ?? 0,
+              height: pet.height ?? 0,
+              age: pet.age ?? 0,
+              sex: pet.sex ?? 'male',
+              neutered: pet.neutered ?? false,
+            })
+          : null;
 
           const photoUri = getPetPhotoUri(pet.photo_url);
 
